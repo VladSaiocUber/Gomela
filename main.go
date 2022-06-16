@@ -67,14 +67,7 @@ func main() {
 		}
 	}
 
-	// f, _ := os.OpenFile("./"+RESULTS_FOLDER+"/package_errors.csv",
-	// 	os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	// os.Stderr = f
-	// defer f.Close()
-
-	ver := &VerificationInfo{
-		print_trace: false,
-	}
+	ver := &VerificationInfo{}
 
 	projects := flag.String("p", "", "a folder that contains all the projects.")
 
@@ -84,7 +77,6 @@ func main() {
 	ver.spin_output = flag.String("pt", "", "Specifies the file where the trace returned by spin is to be printed.")
 	flag.StringVar(&TIMEOUT, "timeout", "30", "time limit for SPIN verification")
 	ver.gopath = flag.String("gopath", "", "a gopath to perform package loading from")
-	flag.StringVar(&TIMEOUT, "timeout", "30", "time limit for SPIN verification")
 	flag.StringVar(&RESULTS_FOLDER, "result_folder", "result", "folder to store the result in")
 	flag.Parse()
 
