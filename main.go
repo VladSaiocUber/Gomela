@@ -64,11 +64,6 @@ func main() {
 		}
 	}
 
-	// f, _ := os.OpenFile("./"+RESULTS_FOLDER+"/package_errors.csv",
-	// 	os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	// os.Stderr = f
-	// defer f.Close()
-
 	ver := &VerificationInfo{}
 
 	projects := flag.String("p", "", "a folder that contains all the projects.")
@@ -76,6 +71,19 @@ func main() {
 	ver.multi_list = flag.String("l", "", "a .csv is also given as args and contains a list of github.com projects with their commits to parse.")
 	ver.multi_projects = flag.String("mp", "", "Recursively loop through the folder given and parse all folder that contains a go file.")
 	ver.single_project = flag.String("s", "", "a single project is given to parse. Format \"creator/project_name\"")
+	ver.gopath = flag.String("gopath", "", "a gopath to perform package loading from")
+	MODE := flag.String("do", "", "what to do")
+	flag.StringVar(&RESULTS_FOLDER, "result_folder", "result", "folder to store the result in")
+
+	var fold = RESULTS_FOLDER
+	if fold[0] != '/' {
+		fold = "./" + fold
+	}
+
+	f, _ := os.OpenFile(fold+"/package_errors.csv",
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	os.Stderr = f
+	defer f.Close()
 
 	ver.gopath = flag.String("gopath", "", "a gopath to perform package loading from")
 	flag.StringVar(&RESULTS_FOLDER, "result_folder", "result", "folder to store the result in")
@@ -101,7 +109,7 @@ func main() {
 
 	ver.Go_names = c.Go
 	ver.Comm_par_values = c.Comm_par_values
-	switch os.Args[1] {
+	switch *MODE {
 	case "model": // the user wants to generate the model
 		model(ver)
 		fmt.Println("Num of global concurrency primitives ", ver.num_concurrency_primitive_as_global)
@@ -347,10 +355,9 @@ func commit(ver *VerificationInfo) {
 // genreate a model based on input and return the flags left
 func model(ver *VerificationInfo) []string {
 	if RESULTS_FOLDER == "result" {
-		t := time.Now().Local().Format("2006-01-02--15d04m05y")
+		t := time.Now().Local().Format("2006-01-02--15:04:05")
 		RESULTS_FOLDER += t
 	}
-
 	os.Mkdir(RESULTS_FOLDER, os.ModePerm)
 	promela.CreateCSV(RESULTS_FOLDER)
 	switch os.Args[2] {
@@ -402,7 +409,9 @@ func model(ver *VerificationInfo) []string {
 		return os.Args[3:]
 	default:
 
-		path := os.Args[2]
+		path := flag.Arg(0)
+
+		println(path)
 		// PROJECTS_FOLDER = path
 
 		_, err := ioutil.ReadDir(path)
@@ -440,6 +449,9 @@ func model(ver *VerificationInfo) []string {
 }
 
 func verify(ver *VerificationInfo, toParse string) {
+	if toParse[0] != '/' {
+		toParse = "./" + toParse
+	}
 	// toPrint := "Model, Opt, #states, Time (ms), Channel Safety Error, Global Deadlock, Error, Comm param info, Link,\n"
 
 	if toParse[0] != '/' {
@@ -483,7 +495,6 @@ func verify(ver *VerificationInfo, toParse string) {
 	}
 
 	if f.IsDir() {
-		RESULTS_FOLDER = toParse
 		// Print CSV
 		f, err := os.OpenFile(toParse+"/verification.csv",
 			os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
@@ -644,9 +655,7 @@ func inferProject(path string, dir_name string, commit string, packages []string
 
 	// Partition program
 	dir_name = strings.Replace(dir_name, "/", AUTHOR_PROJECT_SEP, -1)
-
 	var gopath string
-
 	if ver.gopath != nil {
 		gopath = "GOPATH=" + *ver.gopath
 	}

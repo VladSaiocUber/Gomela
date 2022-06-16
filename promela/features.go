@@ -20,7 +20,6 @@ type Feature struct {
 }
 
 func CreateCSV(result_folder string) {
-
 	if result_folder[0] != '/' {
 		result_folder = "./" + result_folder
 	}

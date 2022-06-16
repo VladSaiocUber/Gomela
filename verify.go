@@ -39,8 +39,12 @@ func VerifyModels(models []os.FileInfo, dir_name string, bounds_to_check []inter
 	if len(bounds_to_check) == 0 {
 		bounds_to_check = []interface{}{0, 1, 3}
 	}
-	// create CSV
-	f, err := os.OpenFile("./"+RESULTS_FOLDER+"/verification.csv",
+	// Print CSV
+	fold := RESULTS_FOLDER
+	if fold[0] != '/' {
+		fold = "./" + fold
+	}
+	f, err := os.OpenFile(fold+"/verification.csv",
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	defer f.Close()
 
@@ -207,8 +211,9 @@ func verifyModel(path string, model_name string, git_link string, f *os.File, ma
 				ver.Global_deadlock = true
 			}
 		}
-		return ver, executable
-	} else {
+	}
+
+	if executable {
 		comm_par_info := ""
 		fmt.Println("-------------------------------")
 		fmt.Println("Result for " + model_name)

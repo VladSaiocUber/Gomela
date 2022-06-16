@@ -195,7 +195,12 @@ func TestMain(t *testing.T) {
 	}
 
 	fmt.Println("Testing that all models are reported as deadlocks")
-	survey_parser := exec.Command("./survey_parser/survey_parser", "./"+RESULTS_FOLDER+"/log.csv", "./projects.txt", "./"+RESULTS_FOLDER+"/verification.csv")
+
+	folder := RESULTS_FOLDER
+	if folder[0] != '/' {
+		folder = "./" + folder
+	}
+	survey_parser := exec.Command("./survey_parser/survey_parser", folder+"/log.csv", "./projects.txt", folder+"/verification.csv")
 
 	survey_parser.Run()
 

@@ -78,6 +78,9 @@ func GenerateAst(dir string, package_names []string, dir_name string, gopath str
 	}
 
 	package_names = append([]string{"."}, package_names...)
+	if gopath != "" {
+		cfg.Env = append(os.Environ(), gopath, "GO111MODULE=off")
+	}
 	lpkgs, err := packages.Load(cfg, package_names...)
 
 	if a := recover(); a != nil || err != nil || cfg.Fset == nil {
