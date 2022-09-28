@@ -105,7 +105,7 @@ func main() {
 		fmt.Println("Num of global concurrency primitives ", ver.num_concurrency_primitive_as_global)
 	case "verify": // the user wants to verify a .pml file with specifics bounds
 
-		if strings.Contains(flag.Arg(1), ".pml") {
+		if flag.NArg() > 1 && strings.Contains(flag.Arg(1), ".pml") {
 			model_to_verify := flag.Arg(1)
 
 			// parse how many comm pars are in the file
@@ -121,7 +121,7 @@ func main() {
 			if flag.NArg()-2-mand_params-opt_params != 0 {
 				panic("Please provide a value for each comm parameter in the order they appear in the program, num params = " + fmt.Sprint(mand_params+opt_params) + ", num args given " + fmt.Sprint(flag.NArg()))
 			} else {
-				verifyModelWithSpecificValues(ver, string(content), flag.Args()[2:])
+				verifyModelWithSpecificValues(string(content), flag.Args()[2:])
 			}
 		} else {
 			panic("Please provide a .pml file : ie. gomela verify hello.pml")
