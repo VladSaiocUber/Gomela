@@ -41,11 +41,7 @@ func VerifyModels(models []os.FileInfo, dir_name string, bounds_to_check []inter
 		bounds_to_check = []interface{}{0, 1, 3}
 	}
 	// Print CSV
-	fold := RESULTS_FOLDER
-	if fold[0] != '/' {
-		fold = "./" + fold
-	}
-	f, err := os.OpenFile(fold+"/verification.csv",
+	f, err := os.OpenFile(RESULTS_FOLDER+"/verification.csv",
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	defer f.Close()
 

@@ -74,12 +74,8 @@ func main() {
 	ver.gopath = flag.String("gopath", "", "a gopath to perform package loading from")
 	flag.StringVar(&RESULTS_FOLDER, "result_folder", "result", "folder to store the result in")
 
-	var fold = RESULTS_FOLDER
-	if fold[0] != '/' {
-		fold = "./" + fold
-	}
-
-	f, _ := os.OpenFile(fold+"/package_errors.csv",
+	RESULTS_FOLDER, _ = filepath.Abs(RESULTS_FOLDER)
+	f, _ := os.OpenFile(RESULTS_FOLDER+"/package_errors.csv",
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	os.Stderr = f
 	defer f.Close()
@@ -112,7 +108,7 @@ func main() {
 
 			mand_params, opt_params := findNumCommParam(string(content))
 
-			if flag.NArg()-1-mand_params-opt_params != 0 {
+			if flag.NArg()-2-mand_params-opt_params != 0 {
 				panic("Please provide a value for each comm parameter in the order they appear in the program, num params = " + fmt.Sprint(mand_params+opt_params) + ", num args given " + fmt.Sprint(flag.NArg()))
 			} else {
 				verifyModelWithSpecificValues(string(content), flag.Args()[2:])

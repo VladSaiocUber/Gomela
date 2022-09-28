@@ -84,12 +84,8 @@ func GenerateAst(dir string, package_names []string, dir_name string, gopath str
 	lpkgs, err := packages.Load(cfg, package_names...)
 
 	if a := recover(); a != nil || err != nil || cfg.Fset == nil {
-		fold := RESULTS_FOLDER
-		if fold[0] != '/' {
-			fold = "./" + fold
-		}
 
-		f, _ := os.OpenFile(fold+"/log.csv",
+		f, _ := os.OpenFile(RESULTS_FOLDER+"/log.csv",
 			os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 
 		toPrint := dir_name + ",Could not parse project"

@@ -196,10 +196,7 @@ func TestMain(t *testing.T) {
 
 	fmt.Println("Testing that all models are reported as deadlocks")
 
-	folder := RESULTS_FOLDER
-	if folder[0] != '/' {
-		folder = "./" + folder
-	}
+	folder, _ := filepath.Abs(RESULTS_FOLDER)
 	survey_parser := exec.Command("./survey_parser/survey_parser", folder+"/log.csv", "./projects.txt", folder+"/verification.csv")
 
 	survey_parser.Run()
