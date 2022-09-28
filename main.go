@@ -72,25 +72,9 @@ func main() {
 	ver.multi_projects = flag.String("mp", "", "Recursively loop through the folder given and parse all folder that contains a go file.")
 	ver.single_project = flag.String("s", "", "a single project is given to parse. Format \"creator/project_name\"")
 	ver.gopath = flag.String("gopath", "", "a gopath to perform package loading from")
-	MODE := flag.String("do", "", "what to do")
 	flag.StringVar(&RESULTS_FOLDER, "result_folder", "result", "folder to store the result in")
 
 	var fold = RESULTS_FOLDER
-	if fold[0] != '/' {
-		fold = "./" + fold
-	}
-
-	f, _ := os.OpenFile(fold+"/package_errors.csv",
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	os.Stderr = f
-	defer f.Close()
-
-	ver.gopath = flag.String("gopath", "", "a gopath to perform package loading from")
-	flag.StringVar(&RESULTS_FOLDER, "result_folder", "result", "folder to store the result in")
-
-	flag.Parse()
-	var fold = RESULTS_FOLDER
-	fmt.Println(fold)
 	if fold[0] != '/' {
 		fold = "./" + fold
 	}
@@ -109,14 +93,14 @@ func main() {
 
 	ver.Go_names = c.Go
 	ver.Comm_par_values = c.Comm_par_values
-	switch *MODE {
+	switch flag.Arg(0) {
 	case "model": // the user wants to generate the model
 		model(ver)
 		fmt.Println("Num of global concurrency primitives ", ver.num_concurrency_primitive_as_global)
 	case "verify": // the user wants to verify a .pml file with specifics bounds
 
-		if len(os.Args) > 2 && strings.Contains(os.Args[2], ".pml") {
-			model_to_verify := os.Args[2]
+		if strings.Contains(flag.Arg(1), ".pml") {
+			model_to_verify := flag.Arg(1)
 
 			// parse how many comm pars are in the file
 
@@ -128,10 +112,10 @@ func main() {
 
 			mand_params, opt_params := findNumCommParam(string(content))
 
-			if len(os.Args)-3-mand_params-opt_params != 0 {
-				panic("Please provide a value for each comm parameter in the order they appear in the program, num params = " + fmt.Sprint(mand_params+opt_params) + ", num args given " + fmt.Sprint(len(os.Args)))
+			if flag.NArg()-1-mand_params-opt_params != 0 {
+				panic("Please provide a value for each comm parameter in the order they appear in the program, num params = " + fmt.Sprint(mand_params+opt_params) + ", num args given " + fmt.Sprint(flag.NArg()))
 			} else {
-				verifyModelWithSpecificValues(string(content), os.Args[3:])
+				verifyModelWithSpecificValues(string(content), flag.Args()[2:])
 			}
 		} else {
 			panic("Please provide a .pml file : ie. gomela verify hello.pml")
@@ -146,8 +130,8 @@ func main() {
 
 	case "bmc":
 
-		if len(os.Args) > 2 {
-			verify(ver, os.Args[2])
+		if flag.NArg() > 1 {
+			verify(ver, flag.Arg(1))
 		} else {
 			panic("Please provide a folder that contains the .pml that you want to parse or a pml that you want to verify.")
 		}
@@ -155,12 +139,12 @@ func main() {
 		commit(ver)
 
 	case "sanity": // remove the .pml files that do nothing
-		if len(os.Args) > 2 {
+		if flag.NArg() > 1 {
 			del := false
-			if len(os.Args) > 3 {
+			if flag.NArg() > 2 {
 				del = true
 			}
-			num_unsain := sanity(ver, os.Args[2], del)
+			num_unsain := sanity(ver, flag.Arg(1), del)
 
 			fmt.Println("Removed a total of ", num_unsain, " files which did not contain any concurrent interactions")
 			fmt.Println("Num of mutex : ", ver.unused_mutex)
@@ -313,13 +297,13 @@ func sanityCheckFile(ver *VerificationInfo, path string, del bool) bool {
 func commit(ver *VerificationInfo) {
 
 	// parse multiple projects
-	if len(os.Args) > 2 {
-		if strings.HasSuffix(os.Args[2], ".csv") || strings.HasSuffix(os.Args[2], ".txt") {
+	if flag.NArg() > 1 {
+		if strings.HasSuffix(flag.Arg(1), ".csv") || strings.HasSuffix(flag.Arg(1), ".txt") {
 
 			// parse each projects
-			data, e := ioutil.ReadFile(os.Args[2])
+			data, e := ioutil.ReadFile(flag.Arg(1))
 			if e != nil {
-				fmt.Printf("prevent panic by handling failure accessing a path %q: %v\n", os.Args[2], e)
+				fmt.Printf("prevent panic by handling failure accessing a path %q: %v\n", flag.Arg(1), e)
 				return
 			}
 			projects_commit := ""
@@ -360,16 +344,16 @@ func model(ver *VerificationInfo) []string {
 	}
 	os.Mkdir(RESULTS_FOLDER, os.ModePerm)
 	promela.CreateCSV(RESULTS_FOLDER)
-	switch os.Args[2] {
+	switch flag.Arg(1) {
 	case "l":
 		// parse multiple projects
-		if len(os.Args) > 3 {
-			if strings.HasSuffix(os.Args[3], ".csv") {
+		if flag.NArg() > 2 {
+			if strings.HasSuffix(flag.Arg(2), ".csv") {
 
 				// parse each projects
-				data, e := ioutil.ReadFile(os.Args[3])
+				data, e := os.ReadFile(flag.Arg(2))
 				if e != nil {
-					panic(fmt.Sprintf("prevent panic by handling failure accessing a path %q: %v\n", os.Args[3], e))
+					panic(fmt.Sprintf("prevent panic by handling failure accessing a path %q: %v\n", flag.Arg(2), e))
 				}
 				proj_listings := strings.Split(string(data), "\n")
 				fmt.Println(len(proj_listings), " projects to parse")
@@ -390,9 +374,9 @@ func model(ver *VerificationInfo) []string {
 				fmt.Println("Please provide a .csv file containing the list of projects to be parsed")
 			}
 		}
-		return os.Args[3:]
+		return flag.Args()[2:]
 	case "mp":
-		path := os.Args[3]
+		path := flag.Arg(2)
 		// PROJECTS_FOLDER = path
 
 		path, _ = filepath.Abs(path)
@@ -402,14 +386,14 @@ func model(ver *VerificationInfo) []string {
 			fmt.Println("Modelling : ", f.Name())
 			parseFolder(path+"/"+f.Name(), ver)
 		}
-		return os.Args[3:]
+		return flag.Args()[2:]
 	case "s":
 		// parse project given
-		parseProject(os.Args[3], "master", ver)
-		return os.Args[3:]
+		parseProject(flag.Arg(2), "master", ver)
+		return flag.Args()[2:]
 	default:
 
-		path := flag.Arg(0)
+		path := flag.Arg(1)
 
 		println(path)
 		// PROJECTS_FOLDER = path
@@ -434,14 +418,14 @@ func model(ver *VerificationInfo) []string {
 		})
 
 		inferProject(path, filepath.Base(path), "", packages, ver)
-		if len(os.Args) > 3 {
-			return os.Args[3:]
+		if flag.NArg() > 2 {
+			return flag.Args()[2:]
 		}
 		return []string{}
 	}
 
-	if len(os.Args) > 4 {
-		return os.Args[4:]
+	if flag.NArg() > 3 {
+		return flag.Args()[3:]
 	}
 
 	return []string{}
@@ -469,10 +453,10 @@ func verify(ver *VerificationInfo, toParse string) {
 	}
 	bounds_to_check := []interface{}{}
 
-	bounds_index := 3
+	bounds_index := 2
 
-	for bounds_index < len(os.Args) {
-		_, err := strconv.Atoi(os.Args[bounds_index])
+	for bounds_index < flag.NArg() {
+		_, err := strconv.Atoi(flag.Arg(bounds_index))
 
 		if err != nil {
 			bounds_index++
@@ -481,9 +465,9 @@ func verify(ver *VerificationInfo, toParse string) {
 		}
 	}
 
-	if len(os.Args) > bounds_index {
+	if flag.NArg() > bounds_index {
 
-		for _, b := range os.Args[bounds_index:] {
+		for _, b := range flag.Args()[bounds_index:] {
 			num, err := strconv.Atoi(b)
 
 			if err != nil {
@@ -606,12 +590,12 @@ type Param struct {
 }
 
 func printStats() {
-	if len(os.Args) > 2 {
+	if flag.NArg() > 1 {
 		// read file
-		data, e := ioutil.ReadFile(os.Args[2])
+		data, e := ioutil.ReadFile(flag.Arg(1))
 
 		if e != nil {
-			panic("The file provided " + os.Args[2] + " could not be open")
+			panic("The file provided " + flag.Arg(1) + " could not be open")
 		}
 
 		// print stats
