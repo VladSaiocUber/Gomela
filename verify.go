@@ -162,7 +162,7 @@ func verifyModel(path string, model_name string, git_link string, f *os.File, ma
 	// Copy file and verify the copied file
 
 	// Verify with SPIN
-	command := exec.Command("timeout", "30", "spin", "-run", "-DVECTORSZ=4508", "-m10000000", "-w26", path, "-f")
+	command := exec.Command("timeout", TIMEOUT, "spin", "-run", "-DVECTORSZ=4508", "-m10000000", "-w26", path, "-f")
 	command.Stdout = &output
 	command.Stderr = &err_output
 	command.Dir = filepath.Dir(path)
@@ -340,7 +340,7 @@ func verifyWithOptParams(ver *VerificationRun, path string, model_name string, l
 					var err_output bytes.Buffer
 
 					// Verify with SPIN
-					command := exec.Command("timeout", "30", "spin", "-run", "-DVECTORSZ=4508", "-m10000000", "-w26", path, "-f")
+					command := exec.Command("timeout", TIMEOUT, "spin", "-run", "-DVECTORSZ=4508", "-m10000000", "-w26", path, "-f")
 					command.Stdout = &output
 					command.Stderr = &err_output
 					command.Dir = filepath.Dir(path)
