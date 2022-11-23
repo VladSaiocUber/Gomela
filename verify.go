@@ -488,6 +488,9 @@ func LinkBackToSource(ver *VerificationRun, path string, spin_output string) []s
 
 func findBlockedProc(path string, output string) []string {
 	processes := strings.Split(output, "#processes:")
+	if len(processes) < 2 { // Do not panic here.
+		return nil
+	}
 	lines := strings.Split(processes[1], "\n")
 
 	blocked_operations := []string{}
