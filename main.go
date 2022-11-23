@@ -77,6 +77,7 @@ func main() {
 	ver.spin_output = flag.String("pt", "", "Specifies the file where the trace returned by spin is to be printed.")
 	flag.StringVar(&TIMEOUT, "timeout", "30", "time limit for SPIN verification")
 	ver.gopath = flag.String("gopath", "", "a gopath to perform package loading from")
+	flag.StringVar(&TIMEOUT, "timeout", "30", "time limit for SPIN verification")
 	flag.StringVar(&RESULTS_FOLDER, "result_folder", "result", "folder to store the result in")
 	flag.Parse()
 
