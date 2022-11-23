@@ -76,6 +76,8 @@ func main() {
 	flag.StringVar(&TIMEOUT, "timeout", "30", "time limit for SPIN verification")
 	flag.StringVar(&RESULTS_FOLDER, "result_folder", "result", "folder to store the result in")
 
+	flag.Parse()
+
 	RESULTS_FOLDER, _ = filepath.Abs(RESULTS_FOLDER)
 	f, _ := os.OpenFile(RESULTS_FOLDER+"/package_errors.csv",
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
