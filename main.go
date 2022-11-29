@@ -39,6 +39,7 @@ type VerificationInfo struct {
 	Go_names                            []string
 	gopath                              *string
 	Comm_par_values                     []int
+	print_trace                         *bool
 	// single_file    *string
 }
 
@@ -72,11 +73,15 @@ func main() {
 	ver.multi_list = flag.String("l", "", "a .csv is also given as args and contains a list of github.com projects with their commits to parse.")
 	ver.multi_projects = flag.String("mp", "", "Recursively loop through the folder given and parse all folder that contains a go file.")
 	ver.single_project = flag.String("s", "", "a single project is given to parse. Format \"creator/project_name\"")
+	print_trace := flag.Bool("pt", false, "Specifies that the trace returned by spin needs to be printed.")
+
 	ver.gopath = flag.String("gopath", "", "a gopath to perform package loading from")
 	flag.StringVar(&TIMEOUT, "timeout", "30", "time limit for SPIN verification")
 	flag.StringVar(&RESULTS_FOLDER, "result_folder", "result", "folder to store the result in")
-
 	flag.Parse()
+	if *print_trace {
+		fmt.Println("Print trace !")
+	}
 
 	RESULTS_FOLDER, _ = filepath.Abs(RESULTS_FOLDER)
 	f, _ := os.OpenFile(RESULTS_FOLDER+"/package_errors.csv",
