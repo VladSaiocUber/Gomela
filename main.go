@@ -122,7 +122,7 @@ func main() {
 			if flag.NArg()-2-mand_params-opt_params != 0 {
 				panic("Please provide a value for each comm parameter in the order they appear in the program, num params = " + fmt.Sprint(mand_params+opt_params) + ", num args given " + fmt.Sprint(flag.NArg()))
 			} else {
-				verifyModelWithSpecificValues(string(content), flag.Args()[2:])
+				verifyModelWithSpecificValues(ver, string(content), flag.Args()[2:])
 			}
 		} else {
 			panic("Please provide a .pml file : ie. gomela verify hello.pml")
