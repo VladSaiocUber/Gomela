@@ -67,7 +67,9 @@ func main() {
 		}
 	}
 
-	ver := &VerificationInfo{}
+	ver := &VerificationInfo{
+		print_trace: false,
+	}
 
 	projects := flag.String("p", "", "a folder that contains all the projects.")
 
@@ -424,7 +426,7 @@ func model(ver *VerificationInfo) []string {
 		})
 
 		inferProject(path, filepath.Base(path), "", packages, ver)
-		if flag.NArg() > 2 {
+		if flag.NArg() > 3 {
 			return flag.Args()[2:]
 		}
 		return []string{}
@@ -461,8 +463,8 @@ func verify(ver *VerificationInfo, toParse string) {
 
 	bounds_index := 2
 
-	for bounds_index < flag.NArg() {
-		_, err := strconv.Atoi(flag.Arg(bounds_index))
+	for bounds_index < flag.NArg()+1 {
+		_, err := strconv.Atoi(flag.Arg(bounds_index - 1))
 
 		if err != nil {
 			bounds_index++
@@ -471,9 +473,9 @@ func verify(ver *VerificationInfo, toParse string) {
 		}
 	}
 
-	if flag.NArg() > bounds_index {
+	if flag.NArg()+1 > bounds_index {
 
-		for _, b := range flag.Args()[bounds_index:] {
+		for _, b := range flag.Args()[bounds_index-1:] {
 			num, err := strconv.Atoi(b)
 
 			if err != nil {
