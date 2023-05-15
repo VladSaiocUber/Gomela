@@ -1,4 +1,4 @@
-.DS_Store
+**/.DS_Store
 gomela
 Gomela
 pan*
@@ -16,3 +16,4 @@ source/*/*/*
 projects
 projects/*
 .vscode
+todo.txt
