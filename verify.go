@@ -5,8 +5,10 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -34,6 +36,25 @@ type VerificationRun struct {
 const (
 	MAX_NUMBER_TESTS = 256
 )
+
+func runGinger(modelPath string) {
+	gomela, err := os.Executable()
+	if err != nil {
+		log.Println("Failed to extract Gomela executable.")
+		return
+	}
+
+	gingerPath := path.Join(path.Dir(gomela), "goinvgen-exe")
+	ginger := exec.Command(gingerPath, "-output-dir", path.Dir(modelPath), modelPath)
+	out, err := ginger.Output()
+	log.Println("Running Ginger on", modelPath+"...")
+	if err == nil {
+		log.Println("Result:", string(out))
+	} else {
+		log.Println("Error:", err)
+		log.Println("Output stream:", err)
+	}
+}
 
 func VerifyModels(ver_info *VerificationInfo, models []os.FileInfo, dir_name string, bounds_to_check []interface{}) {
 
@@ -63,6 +84,8 @@ func VerifyModels(ver_info *VerificationInfo, models []os.FileInfo, dir_name str
 			if err != nil {
 				fmt.Println("Could not read content of : ", path, err)
 			} else {
+				runGinger(path)
+
 				var git_link string = ""
 				file_content := string(content)
 				lines := strings.Split(file_content, "\n")
