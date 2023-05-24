@@ -124,8 +124,12 @@ func Print(m *Model) {
 	stmt += "\n /* ================================================================================== */"
 	stmt += "\n /* ================================================================================== */"
 	stmt += "\n /* ================================================================================== */ \n"
+
 	if m.ContainsChan {
-		stmt += GenerateAsyncMonitor() + generateSyncChanMonitor()
+		// If there is a close statement, we need the monitors
+		if m.ContainsClose {
+			stmt += GenerateAsyncMonitor() + generateSyncChanMonitor()
+		}
 	}
 
 	if m.ContainsWg {
