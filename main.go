@@ -19,29 +19,30 @@ import (
 type ProjectResult struct {
 	Name             string            // the name of the project
 	Num_states       int               // The overall number of states needed to verify the whole program
-	Infer_timing     int               // time in milli to infer the promela model
+	Infer_timing     int               // time (ms) to infer the Promela model
 	Models           []VerificationRun // Verification run for all Models
 	Safety_error     bool              // is there any safety errors
 	Global_deadlock  bool              // is there any global deadlock
-	Spin_timing      int               // time in milli to verify the program with spin
-	Godel_timing     int               // time in milli to verify the program with godel
-	Migoinfer_timing int               // time in milli to model the program with migoinfer
+	Spin_timing      int               // time (ms) to verify the program with spin
+	Godel_timing     int               // time (ms) to verify the program with godel
+	Migoinfer_timing int               // time (ms) to model the program with migoinfer
 }
 
 type VerificationInfo struct {
-	multi_list                          *string
-	multi_projects                      *string
-	single_project                      *string
+	multi_list                          string
+	multi_projects                      string
+	single_project                      string
 	num_concurrency_primitive_as_global int
 	unused_mutex                        int
 	unused_wg                           int
 	unused_chan                         int
 	Go_names                            []string
-	gopath                              *string
+	gopath                              string
 	Comm_par_values                     []int
 	print_trace                         bool
-	spin_output                         *string
-	all_mandatory                       *bool
+	spin_output                         string
+	all_mandatory                       bool
+	needs_project_folder                bool
 	// single_file    *string
 }
 
@@ -59,33 +60,35 @@ func main() {
 	// connecting to github to parse all git projects
 	// add timestamps to name of folder
 
-	_, err := os.Stat(PROJECTS_FOLDER)
-
-	if os.IsNotExist(err) { // create the projects folder if not there
-		errDir := os.MkdirAll(PROJECTS_FOLDER, 0755)
-		if errDir != nil {
-			log.Fatal(err)
-		}
-	}
-
 	ver := &VerificationInfo{
 		print_trace: false,
 	}
 
-	projects := flag.String("p", "", "a folder that contains all the projects.")
-
-	ver.multi_list = flag.String("l", "", "a .csv is also given as args and contains a list of github.com projects with their commits to parse.")
-	ver.multi_projects = flag.String("mp", "", "Recursively loop through the folder given and parse all folder that contains a go file.")
-	ver.single_project = flag.String("s", "", "a single project is given to parse. Format \"creator/project_name\"")
-	ver.spin_output = flag.String("pt", "", "Specifies the file where the trace returned by spin is to be printed.")
+	flag.StringVar(&ver.multi_list, "l", "", "a .csv is also given as args and contains a list of github.com projects with their commits to parse.")
+	flag.StringVar(&ver.multi_projects, "mp", "", "Recursively loop through the folder given and parse all folder that contains a go file.")
+	flag.StringVar(&ver.single_project, "s", "", "a single project is given to parse. Format \"creator/project_name\"")
+	flag.StringVar(&ver.spin_output, "pt", "", "Specifies the file where the trace returned by spin is to be printed.")
 	flag.StringVar(&TIMEOUT, "timeout", "30", "time limit for SPIN verification")
-	ver.gopath = flag.String("gopath", "", "a gopath to perform package loading from")
+	flag.StringVar(&ver.gopath, "gopath", "", "a gopath to perform package loading from")
 	flag.StringVar(&RESULTS_FOLDER, "result_folder", "result", "folder to store the result in")
-	ver.all_mandatory = flag.Bool("am", false, "turns all optionnal parameters into mandatory parameters.")
+	flag.StringVar(&PROJECTS_FOLDER, "p", PROJECTS_FOLDER, "a folder that contains all the projects.")
+	flag.BoolVar(&ver.all_mandatory, "am", false, "turns all optional parameters into mandatory parameters.")
+	flag.BoolVar(&ver.needs_project_folder, "needs-projects", false, "If set, then Gomela will capture projects from a given folder.")
 
 	flag.Parse()
 
-	if *ver.spin_output != "" {
+	if ver.needs_project_folder {
+		_, err := os.Stat(PROJECTS_FOLDER)
+
+		if os.IsNotExist(err) { // create the projects folder if not there
+			errDir := os.MkdirAll(PROJECTS_FOLDER, 0755)
+			if errDir != nil {
+				log.Fatal(err)
+			}
+		}
+	}
+
+	if ver.spin_output != "" {
 		ver.print_trace = true
 	}
 
@@ -94,10 +97,6 @@ func main() {
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	os.Stderr = f
 	defer f.Close()
-
-	if *projects != "" {
-		PROJECTS_FOLDER = *projects
-	}
 
 	// parse the potential config file
 	c := parseConfigFile()
@@ -124,12 +123,12 @@ func main() {
 			mand_params, opt_params := findNumCommParam(string(content))
 
 			if flag.NArg()-2-mand_params-opt_params != 0 {
-				panic("Please provide a value for each comm parameter in the order they appear in the program, num params = " + fmt.Sprint(mand_params+opt_params) + ", num args given " + fmt.Sprint(flag.NArg()))
+				panic("Please provide a value for each comm parameter in the order they appear in the program, num params = " + fmt.Sprint(mand_params+opt_params) + ", num args given " + fmt.Sprint(flag.Args()))
 			} else {
 				verifyModelWithSpecificValues(ver, string(content), flag.Args()[2:])
 			}
 		} else {
-			panic("Please provide a .pml file : ie. gomela verify hello.pml")
+			panic("Please provide a .pml file : i.e. Gomela verify hello.pml")
 		}
 	case "full_stats": // Generate a set of stats for each projects and models
 		stats.Stats()
@@ -362,7 +361,7 @@ func model(ver *VerificationInfo) []string {
 			if strings.HasSuffix(flag.Arg(2), ".csv") {
 
 				// parse each projects
-				data, e := os.ReadFile(flag.Arg(2))
+				data, e := ioutil.ReadFile(flag.Arg(2))
 				if e != nil {
 					panic(fmt.Sprintf("prevent panic by handling failure accessing a path %q: %v\n", flag.Arg(2), e))
 				}
@@ -405,8 +404,6 @@ func model(ver *VerificationInfo) []string {
 	default:
 
 		path := flag.Arg(1)
-
-		println(path)
 		// PROJECTS_FOLDER = path
 
 		_, err := ioutil.ReadDir(path)
@@ -429,7 +426,7 @@ func model(ver *VerificationInfo) []string {
 		})
 
 		inferProject(path, filepath.Base(path), "", packages, ver)
-		if flag.NArg() > 3 {
+		if flag.NArg() > 2 {
 			return flag.Args()[2:]
 		}
 		return []string{}
@@ -467,7 +464,7 @@ func verify(ver *VerificationInfo, toParse string) {
 	bounds_index := 2
 
 	for bounds_index < flag.NArg()+1 {
-		_, err := strconv.Atoi(flag.Arg(bounds_index - 1))
+		_, err := strconv.Atoi(flag.Args()[bounds_index-1])
 
 		if err != nil {
 			bounds_index++
@@ -651,8 +648,9 @@ func inferProject(path string, dir_name string, commit string, packages []string
 	// Partition program
 	dir_name = strings.Replace(dir_name, "/", AUTHOR_PROJECT_SEP, -1)
 	var gopath string
-	if ver.gopath != nil {
-		gopath = "GOPATH=" + *ver.gopath
+
+	if ver.gopath != "" {
+		gopath = "GOPATH=" + ver.gopath
 	}
 
 	f, ast_map := GenerateAst(path, packages, dir_name, gopath)
