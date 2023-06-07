@@ -15,7 +15,6 @@ import (
 
 // takes a project name and infer promela models
 func ParseAst(fileSet *token.FileSet, proj_name string, commit string, ast_map map[string]*packages.Package, ver *VerificationInfo, result_folder string, projects_folder string) {
-
 	if len(ast_map) == 0 {
 		fmt.Println("Program has no packages")
 		return
@@ -23,9 +22,7 @@ func ParseAst(fileSet *token.FileSet, proj_name string, commit string, ast_map m
 
 	for pack_name, node := range ast_map {
 		// Analyse each file
-
 		// make sure the package doesnt contain any global concurrency primitives
-
 		for _, file := range node.Syntax {
 			for _, decl := range file.Decls {
 				switch decl := decl.(type) {
@@ -46,7 +43,6 @@ func ParseAst(fileSet *token.FileSet, proj_name string, commit string, ast_map m
 							Go_names:             ver.Go_names,
 							Name:                 pack_name + PACKAGE_MODEL_SEP + decl.Name.Name + fmt.Sprint(fileSet.Position(decl.Pos()).Line),
 							AstMap:               ast_map,
-							FuncDecls:            []*ast.FuncDecl{},
 							Proctypes:            []*promela_ast.Proctype{},
 							RecFuncs:             []promela.RecFunc{},
 							SpawningFuncs:        []*promela.SpawningFunc{},
@@ -65,11 +61,14 @@ func ParseAst(fileSet *token.FileSet, proj_name string, commit string, ast_map m
 						}
 
 						m.GoToPromela(AUTHOR_PROJECT_SEP)
+
+						if checkInGingerScope(m, decl) {
+
+						}
 					}
 				}
 			}
 		}
-
 	}
 }
 
@@ -115,9 +114,8 @@ func GenerateAst(dir string, package_names []string, dir_name string, gopath str
 	return cfg.Fset, ast_map
 }
 
+// takeCommParAsParam checks whether any of the arguments contain channels, wg or mutex
 func takesCommParAsParam(decl *ast.FuncDecl, pack *packages.Package) bool {
-
-	// check if the args are not structures that contains channels, wg or mutex
 
 	for _, field := range decl.Type.Params.List {
 		switch field.Type.(type) {
@@ -143,7 +141,6 @@ func takesCommParAsParam(decl *ast.FuncDecl, pack *packages.Package) bool {
 				}
 			}
 		}
-
 	}
 
 	if decl.Recv != nil {
@@ -163,15 +160,12 @@ func takesCommParAsParam(decl *ast.FuncDecl, pack *packages.Package) bool {
 					switch t := t.(type) {
 					case *types.Named:
 						return structContainsCommPar(t, []*types.Named{t})
-
 					}
 				} else {
 					log.Print(pack.Name, ":", decl.Name.Name, ":", "MODEL ERROR = The type of the receiver of func ", decl.Name.Name, " could not be found ")
 				}
 			default:
-
 				log.Print(pack.Name, ":", decl.Name.Name, ",", "MODEL ERROR = The receiver of func ", decl.Name.Name, " was not an ident ", ident)
-
 			}
 		}
 	}
@@ -184,36 +178,31 @@ func structContainsCommPar(t types.Type, seen []*types.Named) bool {
 	if t.String() == "sync.WaitGroup" || t.String() == "sync.Mutex" || t.String() == "sync.RWMutex" {
 		return true
 	}
+
 	switch t := t.Underlying().(type) {
 	case *types.Struct:
-
 		for i := 0; i < t.NumFields(); i++ {
-
 			field_type := promela.GetElemIfPointer(t.Field(i).Type())
 
 			switch field := field_type.(type) {
+			case *types.Chan:
+				return true
 			case *types.Struct:
 				if structContainsCommPar(field, seen) {
 					return true
 				}
 			case *types.Named:
 				contains := false
-
 				for _, s := range seen {
-					if s.String() == field.String() {
-						contains = true
-					}
+					contains = contains || s.String() == field.String()
 				}
-				if !contains {
-					if structContainsCommPar(field, append(seen, field)) {
-						return true
-					}
-				}
-			case *types.Chan:
-				return true
-			}
 
+				if contains || structContainsCommPar(field, append(seen, field)) {
+					return true
+				}
+			}
 		}
 	}
+
 	return false
 }

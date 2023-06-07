@@ -73,100 +73,100 @@ func VerifyModels(ver_info *VerificationInfo, models []os.FileInfo, dir_name str
 
 	// verify each model
 	for _, model := range models {
-		if strings.HasSuffix(model.Name(), ".pml") { // make sure its a .pml file
-			fmt.Println("Verifying model : " + model.Name())
+		// make sure it's a non-Ginger oriented .pml file
+		if !strings.HasSuffix(model.Name(), ".pml") || strings.Contains(model.Name(), "#ginger") {
+			continue
+		}
 
-			path := RESULTS_FOLDER + "/" + model.Name()
-			if dir_name != "" {
-				path, _ = filepath.Abs(RESULTS_FOLDER + "/" + dir_name + "/" + model.Name())
+		fmt.Println("Verifying model : " + model.Name())
+		path := RESULTS_FOLDER + "/" + model.Name()
+		if dir_name != "" {
+			path, _ = filepath.Abs(RESULTS_FOLDER + "/" + dir_name + "/" + model.Name())
+		}
+		content, err := ioutil.ReadFile(path)
+		if err != nil {
+			fmt.Println("Could not read content of : ", path, err)
+			continue
+		}
+
+		runGinger(path)
+		var git_link string
+		file_content := string(content)
+		lines := strings.Split(file_content, "\n")
+
+		bounds := [][]interface{}{}
+		comm_params := []string{} // the name of the mandatory param
+
+		optional_params := 0 // number of optional parameters
+		for _, line := range lines {
+			if strings.Contains(line, "??") {
+				define := strings.Split(line, " ")
+				comm_params = append(comm_params, define[1])
+				bounds = append(bounds, bounds_to_check)
 			}
-			content, err := ioutil.ReadFile(path)
-			if err != nil {
-				fmt.Println("Could not read content of : ", path, err)
+			if strings.Contains(line, "-2") && strings.Contains(line, "int") && strings.Contains(line, " = ") {
+				optional_params += 1
+			}
+			if strings.Contains(line, "-2") && strings.Contains(line, "#define") {
+				optional_params += 1
+			}
+
+			if strings.Contains(line, "github.com") && git_link == "" {
+				git_link = strings.Split(line, "// ")[1]
+			}
+		}
+
+		model_name := strings.Replace(filepath.Base(dir_name), "&", "/", -1) + ":" + model.Name()
+		fmt.Println("there is ", optional_params, " optionnal params.")
+
+		if len(comm_params)+optional_params > 6 {
+
+			toPrint := filepath.Base(dir_name) + ":" + model.Name() + ",too many comm params : mand : ," + strconv.Itoa(len(comm_params)) + ", opt :," + strconv.Itoa(optional_params) + "," + ",,,,,\n"
+			if _, err := f.WriteString(toPrint); err != nil {
+				panic(err)
+			}
+			continue
+		}
+
+		copy_path := strings.Replace(path, ".pml", "-copy.pml", 1)
+		if len(comm_params) <= 0 {
+			ioutil.WriteFile(copy_path, []byte(file_content), 0644)
+			ver, ok := verifyModel(ver_info, copy_path, model_name, git_link, f, []string{}, optional_params, []string{})
+			if optional_params > 0 && ok {
+				verifyWithOptParams(ver_info, ver, copy_path, model_name, lines, git_link, f, []string{}, []string{}, optional_params, bounds_to_check)
 			} else {
-				runGinger(path)
+				os.Remove(copy_path)
+			}
+			continue
+		}
 
-				var git_link string = ""
-				file_content := string(content)
-				lines := strings.Split(file_content, "\n")
+		d := cartesian.Iter(bounds...)
 
-				bounds := [][]interface{}{}
-				comm_params := []string{} // the name of the mandatory param
+		for bound := range d {
+			toPrint := file_content
+			for _, b := range bound {
+				toPrint = strings.Replace(toPrint, "??", fmt.Sprint(b), 1)
+			}
 
-				optional_params := 0 // number of optional parameters
-				for _, line := range lines {
-					if strings.Contains(line, "??") {
-						define := strings.Split(line, " ")
-						comm_params = append(comm_params, define[1])
-						bounds = append(bounds, bounds_to_check)
-					}
-					if strings.Contains(line, "-2") && strings.Contains(line, "int") && strings.Contains(line, " = ") {
-						optional_params += 1
-					}
-					if strings.Contains(line, "-2") && strings.Contains(line, "#define") {
-						optional_params += 1
-					}
+			ioutil.WriteFile(copy_path, []byte(toPrint), 0644)
 
-					if strings.Contains(line, "github.com") && git_link == "" {
-						git_link = strings.Split(line, "// ")[1]
-					}
-				}
-
-				model_name := strings.Replace(filepath.Base(dir_name), "&", "/", -1) + ":" + model.Name()
-				fmt.Println("there is ", optional_params, " optionnal params.")
-
-				if len(comm_params)+optional_params > 6 {
-
-					toPrint := filepath.Base(dir_name) + ":" + model.Name() + ",too many comm params : mand : ," + strconv.Itoa(len(comm_params)) + ", opt :," + strconv.Itoa(optional_params) + "," + ",,,,,\n"
-					if _, err := f.WriteString(toPrint); err != nil {
-						panic(err)
-					}
-				} else {
-
-					copy_path := strings.Replace(path, ".pml", "-copy.pml", 1)
-					if len(comm_params) > 0 {
-
-						d := cartesian.Iter(bounds...)
-
-						for bound := range d {
-
-							toPrint := file_content
-							for _, b := range bound {
-								toPrint = strings.Replace(toPrint, "??", fmt.Sprint(b), 1)
-							}
-
-							ioutil.WriteFile(copy_path, []byte(toPrint), 0644)
-
-							lines = strings.Split(toPrint, "\n")
-							bound_str := []string{}
-							for _, b := range bound {
-								bound_str = append(bound_str, fmt.Sprint(b))
-							}
-							ver, ok := verifyModel(ver_info, copy_path, model_name, git_link, f, comm_params, optional_params, bound_str)
-							if !ok {
-								os.Remove(copy_path)
-								break
-							}
-							if optional_params > 0 {
-								verifyWithOptParams(ver_info, ver, copy_path, model_name, lines, git_link, f, comm_params, bound_str, optional_params, bounds_to_check)
-							} else {
-								os.Remove(copy_path)
-							}
-						}
-					} else {
-						ioutil.WriteFile(copy_path, []byte(file_content), 0644)
-						ver, ok := verifyModel(ver_info, copy_path, model_name, git_link, f, []string{}, optional_params, []string{})
-						if optional_params > 0 && ok {
-							verifyWithOptParams(ver_info, ver, copy_path, model_name, lines, git_link, f, []string{}, []string{}, optional_params, bounds_to_check)
-						} else {
-							os.Remove(copy_path)
-						}
-					}
-				}
+			lines = strings.Split(toPrint, "\n")
+			bound_str := []string{}
+			for _, b := range bound {
+				bound_str = append(bound_str, fmt.Sprint(b))
+			}
+			ver, ok := verifyModel(ver_info, copy_path, model_name, git_link, f, comm_params, optional_params, bound_str)
+			if !ok {
+				os.Remove(copy_path)
+				break
+			}
+			if optional_params > 0 {
+				verifyWithOptParams(ver_info, ver, copy_path, model_name, lines, git_link, f, comm_params, bound_str, optional_params, bounds_to_check)
+			} else {
+				os.Remove(copy_path)
 			}
 		}
 	}
-
 }
 
 func verifyModel(ver_info *VerificationInfo, path string, model_name string, git_link string, f *os.File, mand_comm_params []string, num_opt_params int, bound []string) (*VerificationRun, bool) {

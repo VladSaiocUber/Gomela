@@ -54,7 +54,6 @@ type Model struct {
 	Commit               string // the commit of the project
 	RecFuncs             []RecFunc
 	SpawningFuncs        []*SpawningFunc
-	FuncDecls            []*ast.FuncDecl               // A list of all the funcdecl declared in the function being modelled (ie, fun := func(){ return true})
 	Proctypes            []*promela_ast.Proctype       // the processes representing the functions of the model
 	Inlines              []*promela_ast.Inline         // the inlines function that represent the commpar args that are function calls
 	Fun                  *ast.FuncDecl                 // the function being modelled
@@ -369,20 +368,23 @@ func (m *Model) lookForChans(lhs ast.Expr, rhs ast.Expr, new_var bool) (b *prome
 	case *ast.CallExpr:
 		switch ident := c.Fun.(type) {
 		case *ast.Ident:
-			if ident.Name == "make" && len(c.Args) > 0 { // possibly a new chan
-				switch c.Args[0].(type) {
-				case *ast.ChanType:
-					if !new_var {
-						return b, errors.New(CHAN_ALIASING + m.Props.Fileset.Position(lhs.Pos()).String())
-					}
-					b1, err1 := m.translateChan(lhs, c.Args)
+			if ident.Name != "make" || len(c.Args) < 1 || len(c.Args) > 2 {
+				break
+			}
 
-					if err1 != nil {
-						return b, err1
-					}
-
-					addBlock(b, b1)
+			// possibly a new chan
+			switch c.Args[0].(type) {
+			case *ast.ChanType:
+				if !new_var {
+					return b, errors.New(CHAN_ALIASING + m.Props.Fileset.Position(lhs.Pos()).String())
 				}
+				b1, err1 := m.translateChan(lhs, c.Args)
+
+				if err1 != nil {
+					return b, err1
+				}
+
+				addBlock(b, b1)
 			}
 		}
 	case *ast.UnaryExpr:
@@ -812,28 +814,17 @@ func (m *Model) FindDecl(call_expr *ast.CallExpr) (bool, *ast.FuncDecl, string) 
 		if upper_name == nil {
 			return false, nil, ""
 		}
+
 		x := m.AstMap[m.Package].TypesInfo.ObjectOf(upper_name)
 
 		pack_name = upper_name.Name
-		if sel != nil {
-			if sel.Pkg() != nil {
-				pack_name = sel.Pkg().Name()
-			}
+		if sel != nil && sel.Pkg() != nil {
+			pack_name = sel.Pkg().Name()
 		}
 
 		if x != nil {
-			t := GetElemIfPointer(x.Type())
-			switch t.(type) {
-			case *types.Named:
-				if x.Pkg() != nil {
-					// pack_name = x.Pkg().Name()
-				}
-				is_method_call = true
-				method_type = x.Type()
-			case *types.Struct:
-				if x.Pkg() != nil {
-					// pack_name = x.Pkg().Name()
-				}
+			switch GetElemIfPointer(x.Type()).(type) {
+			case *types.Named, *types.Struct:
 				is_method_call = true
 				method_type = x.Type()
 			}
@@ -842,48 +833,54 @@ func (m *Model) FindDecl(call_expr *ast.CallExpr) (bool, *ast.FuncDecl, string) 
 	}
 
 	// Look in the package of the call_expr
-	if m.AstMap[pack_name] != nil {
-		for _, file := range m.AstMap[pack_name].Syntax {
-			if file.Decls != nil {
-				for _, decl := range file.Decls {
-					switch decl := decl.(type) {
-					case *ast.FuncDecl:
-						if func_name == decl.Name.Name {
-							// lets check its type
-							if is_method_call {
-								if decl.Recv != nil {
-									for _, f := range decl.Recv.List {
-										for _, n := range f.Names {
-											obj := m.AstMap[pack_name].TypesInfo.ObjectOf(n)
+	if m.AstMap[pack_name] == nil {
+		return false, nil, ""
+	}
 
-											if obj != nil {
-												t := obj.Type()
+	for _, file := range m.AstMap[pack_name].Syntax {
+		if file.Decls == nil {
+			continue
+		}
 
-												switch c := obj.Type().(type) {
-												case *types.Pointer:
-													switch method_type.(type) {
-													case *types.Pointer:
-													default:
-														t = c.Elem()
-													}
-												default:
-													switch c := method_type.(type) {
-													case *types.Pointer:
-														method_type = c.Elem()
-													default:
-													}
-												}
+		for _, decl := range file.Decls {
+			switch decl := decl.(type) {
+			case *ast.FuncDecl:
+				if func_name == decl.Name.Name {
+					// lets check its type
+					if !is_method_call {
+						return true, decl, pack_name
+					}
 
-												if types.Identical(method_type, t) {
-													return true, decl, pack_name
-												}
-											} else {
-												return false, decl, pack_name
-											}
-										}
-									}
+					if decl.Recv == nil {
+						continue
+					}
+
+					for _, f := range decl.Recv.List {
+						for _, n := range f.Names {
+							obj := m.AstMap[pack_name].TypesInfo.ObjectOf(n)
+
+							if obj == nil {
+								return false, decl, pack_name
+							}
+
+							t := obj.Type()
+
+							switch c := obj.Type().(type) {
+							case *types.Pointer:
+								switch method_type.(type) {
+								case *types.Pointer:
+								default:
+									t = c.Elem()
 								}
-							} else {
+							default:
+								switch c := method_type.(type) {
+								case *types.Pointer:
+									method_type = c.Elem()
+								default:
+								}
+							}
+
+							if types.Identical(method_type, t) {
 								return true, decl, pack_name
 							}
 						}
@@ -897,9 +894,7 @@ func (m *Model) FindDecl(call_expr *ast.CallExpr) (bool, *ast.FuncDecl, string) 
 }
 
 func (m *Model) containsChan(expr ast.Expr) bool {
-
 	for e, _ := range m.Chans {
-
 		if IdenticalExpr(&ast.Ident{Name: translateIdent(e).Name}, &ast.Ident{Name: translateIdent(expr).Name}) {
 			return true
 		}
@@ -910,8 +905,8 @@ func (m *Model) containsChan(expr ast.Expr) bool {
 	}
 	return false
 }
-func (m *Model) isChan(expr ast.Expr) bool {
 
+func (m *Model) isChan(expr ast.Expr) bool {
 	for e, _ := range m.Chans {
 
 		if IdenticalExpr(&ast.Ident{Name: translateIdent(e).Name}, &ast.Ident{Name: translateIdent(expr).Name}) {
@@ -1006,7 +1001,7 @@ func isRecursive(pack string, block *ast.BlockStmt, ast_map map[string]*packages
 			}
 
 		}
-		return true
+		return !recursive
 	})
 
 	return recursive
@@ -1186,7 +1181,6 @@ func (m *Model) newModel(pack string, fun *ast.FuncDecl) *Model {
 		Global_vars:          m.Global_vars,
 		Defines:              m.Defines,
 		CommPars:             []*CommPar{},
-		FuncDecls:            []*ast.FuncDecl{},
 		Features:             []Feature{},
 		process_counter:      0,
 		func_counter:         0,
