@@ -52,7 +52,7 @@ func runGinger(modelPath string) {
 		log.Println("Result:", string(out))
 	} else {
 		log.Println("Error:", err)
-		log.Println("Output stream:", err)
+		log.Println("Output stream:", string(out))
 	}
 }
 
