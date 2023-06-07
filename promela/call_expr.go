@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/nicolasdilley/gomela/promela/promela_ast"
+	"golang.org/x/exp/slices"
 )
 
 // 1. Replace the name of the channel with the name we have in the body of the function
@@ -197,17 +198,13 @@ func getPackName(sel ast.Expr) *ast.Ident {
 }
 
 func (m *Model) IsGoroutine(expr *ast.CallExpr) bool {
-
+	var name string
 	switch expr := expr.Fun.(type) {
 	case *ast.Ident:
-		for _, g := range m.Go_names {
-			if expr.Name == g {
-				return true
-			}
-		}
-	default:
-		return false
+		name = expr.Name
+	case *ast.SelectorExpr:
+		name = expr.Sel.Name
 	}
 
-	return false
+	return slices.Contains(m.Go_names, name)
 }
