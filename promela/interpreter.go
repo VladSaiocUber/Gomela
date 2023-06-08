@@ -98,9 +98,8 @@ func Print(m *Model) {
 	b := promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
 
 	// setting the size of the int chan
-	for _, c := range m.Global_vars {
-		b.List = append(b.List, c)
-	}
+	b.List = append(b.List, m.Global_vars...)
+
 	if m.Props.ContainsChan {
 		stmt += chan_struct.Print(0)
 	}
