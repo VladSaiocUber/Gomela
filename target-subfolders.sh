@@ -4,7 +4,6 @@ TARGET=$1
 ROOT=$2
 RESULTS=$3
 
-
 if [ -z $1 ]; then
   echo "Give me a target."
   exit 1
@@ -23,9 +22,7 @@ ROOTREGEXP=$(echo "$ROOT" | sed "s+\.+\\\.+g")
 rm -rf "$RESULTS/$TARGET"
 
 shopt -s globstar
-ARG_MAX=$(getconf ARG_MAX)
-
-if [ -d $ROOT/$TARGET/$l ]; then
+if [ -d $ROOT/$TARGET ]; then
   HASGO=$(ls $ROOT/$TARGET | grep ".go")
   # echo $HASGO
   if [ ! -z "$HASGO" ]; then
