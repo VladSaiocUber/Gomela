@@ -45,18 +45,20 @@ proctype sync_monitor(Chandef ch) {
 	:: true ->
 		if
 		:: ch.closed;
-			end: if
-		  	:: ch.enq!false; // cannot send on closed channel
-		  	:: ch.closing!true; // cannot close twice a channel
-		  	:: ch.sending!false; // sending state of channel (closed)
-		  	:: ch.rcving?false;
-		  	:: ch.sync!true; // can always receive on a closed chan
-		  	fi;
+			end: skip;
+			if
+		  :: ch.enq!false; // cannot send on closed channel
+		  :: ch.closing!true; // cannot close twice a channel
+		  :: ch.sending!false; // sending state of channel (closed)
+		  :: ch.rcving?false;
+		  :: ch.sync!true; // can always receive on a closed chan
+		  fi;
 		:: else ->
-			end1: if
-		  	:: ch.rcving?false -> ch.sending!true;
-		  	:: ch.closing!false -> ch.closed = true;
-		  	fi;
+			end1: skip;
+			if
+		  :: ch.rcving?false -> ch.sending!true;
+		  :: ch.closing!false -> ch.closed = true;
+		  fi;
 		fi;
 	od;
 	stop_process: skip;
@@ -71,46 +73,52 @@ proctype async_monitor(Chandef ch) {
 	:: true ->
 		if
 		:: ch.closed -> 
-			end: if
-		  	:: ch.num_msgs > 0 -> // cannot send on closed channel
-		  	  end4: if
-		  	  :: ch.enq!false; // cannot send on closed channel
-		  	  :: ch.closing!true; // cannot close twice a channel
-		  	  :: ch.rcving?false;
-		  	  :: ch.sending!false; // sending state of channel (closed)
-		  	  :: ch.deq!true,ch.num_msgs -> ch.num_msgs = ch.num_msgs - 1
-		  	  fi;
-		  	:: else ->
-		  	  end5: if
-		  	  	:: ch.enq!false; // cannot send on closed channel
-		  	  	:: ch.closing!true; // cannot close twice a channel
-		  	  	:: ch.rcving?false;
-		  	  	:: ch.sending!false; // sending state of channel (closed)
-		  	  	:: ch.sync!true; 
-		  	  	fi;
-		  	fi;
+			end: skip;
+			if
+		  :: ch.num_msgs > 0 -> // cannot send on closed channel
+		    end4: skip;
+				if
+		    :: ch.enq!false; // cannot send on closed channel
+		    :: ch.closing!true; // cannot close twice a channel
+		    :: ch.rcving?false;
+		    :: ch.sending!false; // sending state of channel (closed)
+		    :: ch.deq!true,ch.num_msgs -> ch.num_msgs = ch.num_msgs - 1
+		    fi;
+		  :: else ->
+		    end5: skip;
+				if
+		    :: ch.enq!false; // cannot send on closed channel
+		    :: ch.closing!true; // cannot close twice a channel
+		    :: ch.rcving?false;
+		    :: ch.sending!false; // sending state of channel (closed)
+		    :: ch.sync!true; 
+		    fi;
+		  fi;
 		:: else ->
 			if
 			:: ch.num_msgs == ch.size ->
-				end1: if
-				  :: ch.deq!false,ch.num_msgs -> ch.num_msgs = ch.num_msgs - 1;
-				  :: ch.closing!false -> ch.closed = true; // closing the channel
-				  :: ch.rcving?false -> ch.sending!true;
-					fi;
+				end1: skip;
+				if
+				:: ch.deq!false,ch.num_msgs -> ch.num_msgs = ch.num_msgs - 1;
+				:: ch.closing!false -> ch.closed = true; // closing the channel
+				:: ch.rcving?false -> ch.sending!true;
+				fi;
 			:: ch.num_msgs == 0 -> 
-				end2: if
+				end2: skip;
+				if
 				:: ch.enq!true -> ch.num_msgs = ch.num_msgs + 1; // a message has been received
 				:: ch.closing!false -> ch.closed = true; // closing the channel
 				:: ch.rcving?false -> ch.sending!true;
 				fi;
 			:: else -> 
-				end3: if
-				  :: ch.enq!true -> ch.num_msgs = ch.num_msgs + 1;
-				  :: ch.deq!false,ch.num_msgs -> ch.num_msgs = ch.num_msgs - 1;
-				  :: ch.closing!false -> ch.closed = true; // closing the channel
-				  :: ch.rcving?false -> ch.sending!true;
-					fi;
+				end3: skip;
+				if
+				:: ch.enq!true -> ch.num_msgs = ch.num_msgs + 1;
+				:: ch.deq!false,ch.num_msgs -> ch.num_msgs = ch.num_msgs - 1;
+				:: ch.closing!false -> ch.closed = true; // closing the channel
+				:: ch.rcving?false -> ch.sending!true;
 				fi;
+			fi;
 		fi;
 	od;
 }
@@ -138,16 +146,18 @@ func GenerateStructMonitor() string {
 	return `
 proctype wg_monitor(Wgdef wg) {
 	int i;
-	end: do
+	end: skip;
+	do
+	:: wg.update?i ->
+		wg.Counter = wg.Counter + i;
+		wg.update_ack!(wg.Counter >= 0);
+	:: wg.Counter == 0;
+		end1: skip;
+		if
 		:: wg.update?i ->
 			wg.Counter = wg.Counter + i;
 			wg.update_ack!(wg.Counter >= 0);
-		:: wg.Counter == 0;
-	end1: if
-			:: wg.update?i ->
-				wg.Counter = wg.Counter + i;
-				wg.update_ack!(wg.Counter >= 0);
-			:: wg.wait!0;
+		:: wg.wait!0;
 		fi
 	od
 }
@@ -158,7 +168,8 @@ func GenerateMutexMonitor() string {
 	return `
 proctype mutex_monitor(Mutexdef m) {
 	bool locked = false;
-	end: do
+	end: skip;
+	do
 	:: true ->
 		if
 		:: m.Counter > 0 ->
@@ -172,12 +183,13 @@ proctype mutex_monitor(Mutexdef m) {
 			m.Unlock!true;
 			locked = false;
 		:: else ->
-			end1: if
-				:: m.Unlock!false;
-				:: m.Lock!true -> locked =true;
-				:: m.RUnlock!false;
-				:: m.RLock!true -> m.Counter = m.Counter + 1;
-				fi;
+			end1: skip;
+			if
+			:: m.Unlock!false;
+			:: m.Lock!true -> locked =true;
+			:: m.RUnlock!false;
+			:: m.RLock!true -> m.Counter = m.Counter + 1;
+			fi;
 		fi;
 	od
 }
