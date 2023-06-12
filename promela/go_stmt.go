@@ -17,6 +17,12 @@ import (
 )
 
 func (m *Model) TranslateGoStmt(s *ast.GoStmt, isMain bool) (b *promela_ast.BlockStmt, err error) {
+	defer func() {
+		if pnc := recover(); pnc != nil {
+			err = fmt.Errorf("%s", pnc)
+		}
+	}()
+
 	b = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
 
 	var func_name string // The corresponding promela function name consisting of package + fun + num of param + len(proctypes)
@@ -35,7 +41,7 @@ func (m *Model) TranslateGoStmt(s *ast.GoStmt, isMain bool) (b *promela_ast.Bloc
 		var pack string
 		var err1 error
 
-		decl, new_call_expr, pack, err1 = m.findFunDecl(call_expr)
+		decl, new_call_expr, pack, err1 = m.FindFunDecl(call_expr)
 
 		pack_name = pack
 		if err1 != nil {
@@ -84,17 +90,15 @@ func (m *Model) TranslateGoStmt(s *ast.GoStmt, isMain bool) (b *promela_ast.Bloc
 		for _, arg := range call_expr.Args {
 
 			stmt, err1 := m.TranslateExpr(arg)
-
-			if err1 == nil {
-				for _, e := range stmt.List {
-					switch e := e.(type) {
-					case *promela_ast.RcvStmt:
-
-						b.List = append(b.List, e)
-					}
-				}
-			} else {
+			if err1 != nil {
 				return b, err1
+			}
+
+			for _, e := range stmt.List {
+				switch e := e.(type) {
+				case *promela_ast.RcvStmt:
+					b.List = append(b.List, e)
+				}
 			}
 		}
 	}
@@ -400,21 +404,22 @@ func (m *Model) translateParams(new_mod *Model, decl *ast.FuncDecl, call_expr *a
 // 	return p, e
 // }
 
-func (m *Model) findFunDecl(call_expr *ast.CallExpr) (*ast.FuncDecl, *ast.CallExpr, string, error) {
+func (m *Model) FindFunDecl(call_expr *ast.CallExpr) (*ast.FuncDecl, *ast.CallExpr, string, error) {
 	pack_name := m.Package
 
 	switch name := call_expr.Fun.(type) {
 	case *ast.FuncLit: // in the case we have an anonymous func call
-
 		fun_decl := &ast.FuncDecl{
-			Body: &ast.BlockStmt{List: []ast.Stmt{}},
+			Body: name.Body,
 			Type: &ast.FuncType{
 				Params: &ast.FieldList{List: append([]*ast.Field{}, name.Type.Params.List...)},
 			},
 		}
 		func_name := fmt.Sprint("Anonymous", m.Fun.Name.Name, m.Props.Fileset.Position(name.Pos()).Line)
-		ident := &ast.Ident{Name: func_name, NamePos: name.Pos()}
-		fun_decl.Name = ident
+		fun_decl.Name = &ast.Ident{
+			Name:    func_name,
+			NamePos: name.Pos(),
+		}
 		fun_decl.Body = name.Body
 
 		var exprs []ast.Expr
@@ -432,10 +437,12 @@ func (m *Model) findFunDecl(call_expr *ast.CallExpr) (*ast.FuncDecl, *ast.CallEx
 
 		ch_names := []*ast.Ident{}
 		for ch, _ := range m.Chans {
-			if !containsExpr(exprs, ch) {
-				ch_names = append(ch_names, &ast.Ident{Name: TranslateIdent(ch, m.Props.Fileset).Name, NamePos: ch.Pos()})
-				new_call_expr.Args = append(new_call_expr.Args, ch)
+			if containsExpr(exprs, ch) {
+				continue
 			}
+
+			ch_names = append(ch_names, &ast.Ident{Name: TranslateIdent(ch, m.Props.Fileset).Name, NamePos: ch.Pos()})
+			new_call_expr.Args = append(new_call_expr.Args, ch)
 		}
 		if len(ch_names) > 0 {
 			fun_decl.Type.Params.List = append(fun_decl.Type.Params.List, &ast.Field{Names: ch_names, Type: &ast.ChanType{Value: &ast.Ident{Name: "int"}}})
@@ -443,10 +450,12 @@ func (m *Model) findFunDecl(call_expr *ast.CallExpr) (*ast.FuncDecl, *ast.CallEx
 		wg_names := []*ast.Ident{}
 
 		for wg, _ := range m.WaitGroups {
-			if !containsExpr(exprs, wg) {
-				wg_names = append(wg_names, &ast.Ident{Name: TranslateIdent(wg, m.Props.Fileset).Name, NamePos: wg.Pos()})
-				new_call_expr.Args = append(new_call_expr.Args, wg)
+			if containsExpr(exprs, wg) {
+				continue
 			}
+
+			wg_names = append(wg_names, &ast.Ident{Name: TranslateIdent(wg, m.Props.Fileset).Name, NamePos: wg.Pos()})
+			new_call_expr.Args = append(new_call_expr.Args, wg)
 		}
 
 		if len(wg_names) > 0 {
@@ -485,9 +494,8 @@ func (m *Model) findFunDecl(call_expr *ast.CallExpr) (*ast.FuncDecl, *ast.CallEx
 		return fun_decl, &new_call_expr, pack_name, nil
 
 	default:
-
-		if found, decl, pack_name := m.FindDecl(call_expr); found {
-
+		found, decl, pack_name := m.FindDecl(call_expr)
+		if found {
 			for _, field := range decl.Type.Params.List {
 				switch field.Type.(type) {
 				case *ast.Ellipsis:
@@ -495,32 +503,32 @@ func (m *Model) findFunDecl(call_expr *ast.CallExpr) (*ast.FuncDecl, *ast.CallEx
 				}
 			}
 			new_decl, new_call_expr := m.updateDeclWithRcvAndStructs(*decl, call_expr)
-
 			return new_decl, new_call_expr, pack_name, nil
-		} else { // The declaration of the function could not be found
-			// If the goroutines takes one of our channel as input return an error
-			// Otherwise check if the args are a receive on a channel
-			for _, arg := range call_expr.Args {
-				expr := arg
-				switch arg := arg.(type) {
-				case *ast.UnaryExpr:
-					if arg.Op != token.ARROW {
-						expr = arg.X
-					}
-				}
-				if m.isChan(expr) || m.isWaitgroup(expr) || m.isMutex(expr) {
-					return nil, nil, pack_name, errors.New(UNKNOWN_DECL + fmt.Sprint(m.Props.Fileset.Position(call_expr.Fun.Pos())))
+		}
+
+		// The declaration of the function could not be found
+		// If the goroutines takes one of our channel as input return an error
+		// Otherwise check if the args are a receive on a channel
+		for _, arg := range call_expr.Args {
+			expr := arg
+			switch arg := arg.(type) {
+			case *ast.UnaryExpr:
+				if arg.Op != token.ARROW {
+					expr = arg.X
 				}
 			}
-
-			// also check if the function is not a method on a struct that contains
-			// a mutex, a chan or a wg !
-			if m.isStructWithChans(call_expr.Fun) {
+			if m.isChan(expr) || m.isWaitgroup(expr) || m.isMutex(expr) {
 				return nil, nil, pack_name, errors.New(UNKNOWN_DECL + fmt.Sprint(m.Props.Fileset.Position(call_expr.Fun.Pos())))
 			}
+		}
 
+		// also check if the function is not a method on a struct that contains
+		// a mutex, a chan or a wg !
+		if m.isStructWithChans(call_expr.Fun) {
+			return nil, nil, pack_name, errors.New(UNKNOWN_DECL + fmt.Sprint(m.Props.Fileset.Position(call_expr.Fun.Pos())))
 		}
 	}
+
 	return nil, nil, pack_name, nil
 }
 
@@ -590,94 +598,90 @@ func (m *Model) updateDeclWithRcvAndStructs(decl ast.FuncDecl, call_expr *ast.Ca
 		case *ast.SelectorExpr:
 			isConcurrent = t.Sel.Name == "WaitGroup" || t.Sel.Name == "Mutex" || t.Sel.Name == "RWMutex"
 		}
-		if !isConcurrent {
 
-			fields_to_add := []*ast.Field{}
-			args_to_add := []ast.Expr{}
-
-			new_counter := counter
-			for _, name := range field.Names {
-				if len(new_call_expr.Args) > new_counter {
-					s := new_call_expr.Args[new_counter]
-					exprs_in_rcv := [][]ast.Expr{}
-
-					chans := []ast.Expr{}
-					for name, _ := range m.Chans {
-
-						chans = append(chans, name)
-					}
-
-					exprs_in_rcv = append(exprs_in_rcv, addIdenticalSelectorExprs(chans, s))
-
-					wgs := []ast.Expr{}
-					for name, _ := range m.WaitGroups {
-						wgs = append(wgs, name)
-					}
-
-					exprs_in_rcv = append(exprs_in_rcv, addIdenticalSelectorExprs(wgs, s))
-					mutexes := []ast.Expr{}
-
-					for _, name := range m.Mutexes {
-						mutexes = append(mutexes, name)
-					}
-
-					exprs_in_rcv = append(exprs_in_rcv, addIdenticalSelectorExprs(mutexes, s))
-
-					// adding chans and wg
-					chans_fields := generateFields(s, name, exprs_in_rcv[0], &ast.ChanType{})
-					wgs_fields := generateFields(s, name, exprs_in_rcv[1], &ast.StarExpr{
-						X: &ast.SelectorExpr{
-							X:   &ast.Ident{Name: "sync"},
-							Sel: &ast.Ident{Name: "WaitGroup"},
-						},
-					})
-
-					mutexes_fields := generateFields(s, name, exprs_in_rcv[2], &ast.StarExpr{
-						X: &ast.SelectorExpr{
-							X:   &ast.Ident{Name: "sync"},
-							Sel: &ast.Ident{Name: "Mutex"},
-						},
-					})
-					fields_to_add = append(chans_fields, wgs_fields...)
-
-					fields_to_add = append(fields_to_add, mutexes_fields...)
-
-					for _, exprs := range exprs_in_rcv {
-						for _, expr := range exprs {
-							args_to_add = append(args_to_add, expr)
-						}
-					}
-
-					// Add the new parameter to the function decleration
-					params_list.List = append(params_list.List, fields_to_add...)
-					new_args = append(new_args, args_to_add...)
-
-					// Add the new args of the function
-					new_counter++
-				}
-			}
-
-			if len(args_to_add) == 0 && len(fields_to_add) == 0 {
-				for range field.Names {
-
-					if len(new_call_expr.Args) > counter {
-						new_args = append(new_args, new_call_expr.Args[counter])
-						counter++
-					}
-				}
-				params_list.List = append(params_list.List, field)
-			} else {
-				counter = new_counter
-			}
-
-		} else {
+		if isConcurrent {
 
 			params_list.List = append(params_list.List, field)
 			for range field.Names {
 				new_args = append(new_args, new_call_expr.Args[counter])
 				counter++
 			}
+			continue
 		}
+
+		fields_to_add := []*ast.Field{}
+		args_to_add := []ast.Expr{}
+
+		new_counter := counter
+		for _, name := range field.Names {
+			if len(new_call_expr.Args) <= new_counter {
+				continue
+			}
+
+			s := new_call_expr.Args[new_counter]
+			exprs_in_rcv := [][]ast.Expr{}
+
+			chans := []ast.Expr{}
+			for name := range m.Chans {
+				chans = append(chans, name)
+			}
+
+			exprs_in_rcv = append(exprs_in_rcv, addIdenticalSelectorExprs(chans, s))
+
+			wgs := []ast.Expr{}
+			for name := range m.WaitGroups {
+				wgs = append(wgs, name)
+			}
+
+			exprs_in_rcv = append(exprs_in_rcv, addIdenticalSelectorExprs(wgs, s))
+			mutexes := []ast.Expr{}
+
+			mutexes = append(mutexes, m.Mutexes...)
+
+			exprs_in_rcv = append(exprs_in_rcv, addIdenticalSelectorExprs(mutexes, s))
+
+			// adding chans and wg
+			chans_fields := generateFields(s, name, exprs_in_rcv[0], &ast.ChanType{})
+			wgs_fields := generateFields(s, name, exprs_in_rcv[1], &ast.StarExpr{
+				X: &ast.SelectorExpr{
+					X:   &ast.Ident{Name: "sync"},
+					Sel: &ast.Ident{Name: "WaitGroup"},
+				},
+			})
+
+			mutexes_fields := generateFields(s, name, exprs_in_rcv[2], &ast.StarExpr{
+				X: &ast.SelectorExpr{
+					X:   &ast.Ident{Name: "sync"},
+					Sel: &ast.Ident{Name: "Mutex"},
+				},
+			})
+			fields_to_add = append(chans_fields, wgs_fields...)
+			fields_to_add = append(fields_to_add, mutexes_fields...)
+
+			for _, exprs := range exprs_in_rcv {
+				args_to_add = append(args_to_add, exprs...)
+			}
+
+			// Add the new parameter to the function decleration
+			params_list.List = append(params_list.List, fields_to_add...)
+			new_args = append(new_args, args_to_add...)
+
+			// Add the new args of the function
+			new_counter++
+		}
+
+		if len(args_to_add) > 0 || len(fields_to_add) > 0 {
+			counter = new_counter
+			continue
+		}
+
+		for range field.Names {
+			if len(new_call_expr.Args) > counter {
+				new_args = append(new_args, new_call_expr.Args[counter])
+				counter++
+			}
+		}
+		params_list.List = append(params_list.List, field)
 	}
 
 	func_type.Params = params_list
@@ -702,14 +706,11 @@ func generateFields(call_expr ast.Expr, rcv_name *ast.Ident, exprs []ast.Expr, t
 	for _, expr := range exprs {
 		fields = append(fields,
 			&ast.Field{
-				Names: []*ast.Ident{
-					&ast.Ident{
-						Name: translateIdent(renameBaseOfExprWithOther(expr, sub_expr, rcv_name)).Name,
-					},
-				},
+				Names: []*ast.Ident{{
+					Name: translateIdent(renameBaseOfExprWithOther(expr, sub_expr, rcv_name)).Name,
+				}},
 				Type: t,
 			})
-
 	}
 
 	return fields
@@ -737,18 +738,17 @@ func renameBaseOfExprWithOther(from ast.Expr, old ast.Expr, n *ast.Ident) ast.Ex
 }
 
 func exprsToSelector(exprs []string) ast.Expr {
-	if len(exprs) == 1 {
+	switch {
+	case len(exprs) == 1:
 		return &ast.Ident{Name: exprs[0]}
-	}
-	if len(exprs) > 2 {
+	case len(exprs) > 2:
 		return &ast.SelectorExpr{X: exprsToSelector(exprs[:len(exprs)-1]), Sel: &ast.Ident{Name: exprs[len(exprs)-1]}}
-	} else {
-		return &ast.SelectorExpr{X: &ast.Ident{Name: exprs[0]}, Sel: &ast.Ident{Name: exprs[1]}}
 	}
+
+	return &ast.SelectorExpr{X: &ast.Ident{Name: exprs[0]}, Sel: &ast.Ident{Name: exprs[1]}}
 }
 
 func replaceExpr(from ast.Expr, old ast.Expr, n *ast.Ident) ast.Expr {
-
 	if IdenticalExpr(from, old) {
 		return n
 	}
@@ -759,7 +759,6 @@ func replaceExpr(from ast.Expr, old ast.Expr, n *ast.Ident) ast.Expr {
 	default:
 		panic("Cannot find subset")
 	}
-
 }
 
 // Add the expression in exprs that contains s.
@@ -802,20 +801,13 @@ func addIdenticalSelectorExprs(exprs []ast.Expr, s ast.Expr) []ast.Expr {
 
 // check if sub is contained in set (t, t.wg) > yes, (t.t, t.wg) > no, (t.t, t.t.wg) > Yes
 func isSubsetOfExpr(sub ast.Expr, sel ast.Expr) bool {
-
 	if IdenticalExpr(sub, sel) {
 		return true
 	}
+
 	switch sel := sel.(type) {
 	case *ast.SelectorExpr:
-
-		if !IdenticalExpr(sub, sel) {
-
-			return isSubsetOfExpr(sub, sel.X)
-
-		} else {
-			return true
-		}
+		return isSubsetOfExpr(sub, sel.X)
 	case *ast.Ident:
 		idents := strings.Split(sel.Name, "_")
 		if len(idents) == 1 {

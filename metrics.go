@@ -10,16 +10,20 @@ import (
 type GINGER_SCOPE int
 
 const (
-	OUT_OF_SCOPE = iota
+	BORING = iota
+	OUT_OF_SCOPE
 	IN_HARD_SCOPE
 	IN_SOFT_SCOPE
 )
 
 var (
-	fragmentsInScopeHard int
-	fragmentsInScopeSoft int
-	totalFragments       int
-	gomelaFrontendFailed int
+	fragmentsInScopeHard                    int
+	fragmentsInScopeSoft                    int
+	outOfScopeFragments                     int
+	gomelaFrontendFailed                    int
+	gomelaFrontendFailedFragmentInScopeHard int
+	gomelaFrontendFailedFragmentInScopeSoft int
+	gomelaFrontendFailedFragmentOutOfScope  int
 )
 
 type gingerScopeCheckVisitor struct {
@@ -51,6 +55,15 @@ func (v gingerScopeCheckVisitor) Visit(n ast.Node) ast.Visitor {
 
 	switch n := n.(type) {
 	case *ast.CallExpr:
+		if f, ok := n.Fun.(*ast.Ident); ok && f.Name == "make" {
+			if len(n.Args) > 0 && len(n.Args) < 1 {
+				if _, ok := n.Args[0].(*ast.ChanType); ok {
+					*v.inScopeHard = true
+					break
+				}
+			}
+		}
+
 		if fun, _, _, err := v.model.FindFunDecl(n); fun != nil && err != nil {
 			v2 := v
 			v2.inFor = false
@@ -61,10 +74,10 @@ func (v gingerScopeCheckVisitor) Visit(n ast.Node) ast.Visitor {
 			*v.outOfScope = true
 			return nil
 		}
-		ast.Walk(v, n.Cond)
 		ast.Walk(v, n.Init)
-		ast.Walk(v, n.Post)
 		v.inFor = true
+		ast.Walk(v, n.Cond)
+		ast.Walk(v, n.Post)
 		ast.Walk(v, n.Body)
 		return nil
 	case *ast.FuncDecl:
@@ -115,5 +128,5 @@ func checkInGingerScope(m *promela.Model, n *ast.FuncDecl) GINGER_SCOPE {
 		return IN_HARD_SCOPE
 	}
 
-	return OUT_OF_SCOPE
+	return BORING
 }

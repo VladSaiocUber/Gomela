@@ -63,7 +63,7 @@ func (m *Model) TranslateCallExpr(call_expr *ast.CallExpr) (stmts *promela_ast.B
 		panic("Promela_translator.go : Should not have a funclit here")
 	}
 
-	decl, new_call_expr, pack_name, err1 := m.findFunDecl(call_expr)
+	decl, new_call_expr, pack_name, err1 := m.FindFunDecl(call_expr)
 
 	if err1 != nil {
 		return stmts, err1
