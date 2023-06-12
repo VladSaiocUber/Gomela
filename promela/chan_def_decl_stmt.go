@@ -51,7 +51,7 @@ func (s *ChanDefDeclStmt) Print(num_tabs int) (stmt string) {
 			Body: &promela_ast.BlockStmt{List: []promela_ast.Stmt{sync_monitor}}}
 
 		if_stmt.Guards = append(if_stmt.Guards, async_guard, sync_guard)
-		stmt += "\n " + if_stmt.Print(num_tabs)
+		stmt += ";\n " + if_stmt.Print(num_tabs)
 
 	} else {
 		// just print a generic channel
