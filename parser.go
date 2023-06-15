@@ -15,7 +15,6 @@ import (
 
 // takes a project name and infer promela models
 func ParseAst(fileSet *token.FileSet, proj_name string, commit string, ast_map map[string]*packages.Package, ver *VerificationInfo, result_folder string, projects_folder string) {
-
 	if len(ast_map) == 0 {
 		fmt.Println("Program has no packages")
 		return
@@ -23,54 +22,114 @@ func ParseAst(fileSet *token.FileSet, proj_name string, commit string, ast_map m
 
 	for pack_name, node := range ast_map {
 		// Analyse each file
-
 		// make sure the package doesnt contain any global concurrency primitives
-
 		for _, file := range node.Syntax {
 			for _, decl := range file.Decls {
 				switch decl := decl.(type) {
 				case *ast.FuncDecl:
 
 					// plug front end tools
-					if !takesCommParAsParam(decl, ast_map[pack_name]) {
-						// fmt.Println("Parsing ", decl.Name.Name)
-						// fmt.Println("Parsing ", decl.Name)
-						props := new(promela.GlobalProps)
-						props.Fileset = fileSet
+					if takesCommParAsParam(decl, ast_map[pack_name]) {
+						continue
+					}
+					// fmt.Println("Parsing ", decl.Name.Name)
+					// fmt.Println("Parsing ", decl.Name)
+					props := new(promela.GlobalProps)
+					props.Fileset = fileSet
 
-						m := &promela.Model{
-							Props:                props,
-							Result_fodler:        result_folder,
-							Project_name:         proj_name,
-							Package:              pack_name,
-							Go_names:             ver.Go_names,
-							Name:                 pack_name + PACKAGE_MODEL_SEP + decl.Name.Name + fmt.Sprint(fileSet.Position(decl.Pos()).Line),
-							AstMap:               ast_map,
-							FuncDecls:            []*ast.FuncDecl{},
-							Proctypes:            []*promela_ast.Proctype{},
-							RecFuncs:             []promela.RecFunc{},
-							SpawningFuncs:        []*promela.SpawningFunc{},
-							ClosedVars:           make(map[*promela.ChanStruct][]ast.Expr),
-							Fun:                  decl,
-							Chans:                make(map[ast.Expr]*promela.ChanStruct),
-							WaitGroups:           make(map[ast.Expr]*promela.WaitGroupStruct),
-							Mutexes:              []ast.Expr{},
-							Commit:               commit,
-							Global_vars:          []promela_ast.Stmt{},
-							For_counter:          &promela.ForCounter{},
-							Projects_folder:      projects_folder,
-							GenerateFeatures:     true,
-							Current_return_label: "stop_process",
-							All_mandatory:        ver.all_mandatory,
+					m := &promela.Model{
+						Props:                props,
+						Result_fodler:        result_folder,
+						Project_name:         proj_name,
+						Package:              pack_name,
+						Go_names:             ver.Go_names,
+						Name:                 pack_name + PACKAGE_MODEL_SEP + decl.Name.Name + fmt.Sprint(fileSet.Position(decl.Pos()).Line),
+						AstMap:               ast_map,
+						Proctypes:            []*promela_ast.Proctype{},
+						RecFuncs:             []promela.RecFunc{},
+						SpawningFuncs:        []*promela.SpawningFunc{},
+						ClosedVars:           make(map[*promela.ChanStruct][]ast.Expr),
+						Fun:                  decl,
+						Chans:                make(map[ast.Expr]*promela.ChanStruct),
+						WaitGroups:           make(map[ast.Expr]*promela.WaitGroupStruct),
+						Mutexes:              []ast.Expr{},
+						Commit:               commit,
+						Global_vars:          []promela_ast.Stmt{},
+						For_counter:          &promela.ForCounter{},
+						Projects_folder:      projects_folder,
+						GenerateFeatures:     true,
+						Current_return_label: "stop_process",
+						All_mandatory:        ver.all_mandatory,
+					}
+
+					interesting, err := m.GoToPromela(AUTHOR_PROJECT_SEP)
+					if err != nil {
+
+						switch checkInGingerScope(m, decl) {
+						case OUT_OF_SCOPE:
+							gomelaFrontendFailed++
+							log.Printf("The following Gomela unparsable fragment is out of scope. Located at: %s\n",
+								m.Props.Fileset.Position(m.Fun.Pos()))
+							gomelaFrontendFailedFragmentOutOfScope++
+						case IN_HARD_SCOPE:
+							gomelaFrontendFailed++
+							log.Printf("The following Gomela unparsable fragment is in scope (hard). Located at: %s\n",
+								m.Props.Fileset.Position(m.Fun.Pos()))
+							gomelaFrontendFailedFragmentInScopeHard++
+						case IN_SOFT_SCOPE:
+							gomelaFrontendFailed++
+							log.Printf("The following Gomela unparsable fragment is in scope (soft). Located at: %s\n",
+								m.Props.Fileset.Position(m.Fun.Pos()))
+							gomelaFrontendFailedFragmentInScopeSoft++
 						}
-
-						m.GoToPromela(AUTHOR_PROJECT_SEP)
+						continue
+					}
+					if !interesting {
+						continue
+					}
+					switch checkInGingerScope(m, decl) {
+					case OUT_OF_SCOPE:
+						log.Printf("The following fragment is out of scope. Located at: %s\n",
+							m.Props.Fileset.Position(m.Fun.Pos()))
+						outOfScopeFragments++
+					case IN_HARD_SCOPE:
+						log.Printf("The following fragment is in scope (hard). Located at: %s\n",
+							m.Props.Fileset.Position(m.Fun.Pos()))
+						fragmentsInScopeHard++
+					case IN_SOFT_SCOPE:
+						log.Printf("The following fragment is in scope (soft). Located at: %s\n",
+							m.Props.Fileset.Position(m.Fun.Pos()))
+						fragmentsInScopeSoft++
 					}
 				}
 			}
 		}
-
 	}
+
+	var relevant bool
+	for _, b := range []int{
+		fragmentsInScopeHard,
+		fragmentsInScopeSoft,
+		outOfScopeFragments,
+		gomelaFrontendFailedFragmentInScopeHard,
+		gomelaFrontendFailedFragmentInScopeSoft,
+		gomelaFrontendFailedFragmentOutOfScope} {
+		relevant = relevant || b != 0
+	}
+
+	if !relevant {
+		return
+	}
+
+	// Print relevant metrics for Ginger tool
+	log.Println("Done modelling fragments. Found fragments:")
+	log.Printf("\tFragments in scope (hard): %d\n", fragmentsInScopeHard)
+	log.Printf("\tFragments in scope (soft): %d\n", fragmentsInScopeSoft)
+	log.Printf("\tFragments out of scope: %d\n", outOfScopeFragments)
+	log.Printf("\tGomela front-end failures: %d\n", gomelaFrontendFailed)
+	log.Printf("\tGomela front-end failure, fragments in scope (hard): %d\n", gomelaFrontendFailedFragmentInScopeHard)
+	log.Printf("\tGomela front-end failure, fragments in scope (soft): %d\n", gomelaFrontendFailedFragmentInScopeSoft)
+	log.Printf("\tGomela front-end failure, fragments out of scope: %d\n", gomelaFrontendFailedFragmentOutOfScope)
 }
 
 // Generate the GO ast for each packages in packages_names
@@ -115,9 +174,8 @@ func GenerateAst(dir string, package_names []string, dir_name string, gopath str
 	return cfg.Fset, ast_map
 }
 
+// takeCommParAsParam checks whether any of the arguments contain channels, wg or mutex
 func takesCommParAsParam(decl *ast.FuncDecl, pack *packages.Package) bool {
-
-	// check if the args are not structures that contains channels, wg or mutex
 
 	for _, field := range decl.Type.Params.List {
 		switch field.Type.(type) {
@@ -132,47 +190,46 @@ func takesCommParAsParam(decl *ast.FuncDecl, pack *packages.Package) bool {
 		}
 
 		t := pack.TypesInfo.TypeOf(ident)
-
-		if t != nil {
-			switch t := t.(type) {
-			case *types.Named:
-				if t.String() != "testing.T" {
-					if structContainsCommPar(t, []*types.Named{t}) {
-						return true
-					}
-				}
-			}
+		if t == nil {
+			continue
 		}
 
+		switch t := t.(type) {
+		case *types.Named:
+			if t.String() != "testing.T" && structContainsCommPar(t, []*types.Named{t}) {
+				return true
+			}
+		}
 	}
 
-	if decl.Recv != nil {
-		for _, field := range decl.Recv.List {
+	if decl.Recv == nil {
+		return false
+	}
 
-			var ident ast.Expr
-			switch t := field.Type.(type) {
-			case *ast.StarExpr:
-				ident = t.X
-			default:
-				ident = t
+	for _, field := range decl.Recv.List {
+
+		var ident ast.Expr
+		switch t := field.Type.(type) {
+		case *ast.StarExpr:
+			ident = t.X
+		default:
+			ident = t
+		}
+
+		switch ident := ident.(type) {
+		case *ast.Ident:
+			t := pack.TypesInfo.TypeOf(ident)
+			if t == nil {
+				log.Print(pack.Name, ":", decl.Name.Name, ":", "MODEL ERROR = The type of the receiver of func ", decl.Name.Name, " could not be found ")
+				continue
 			}
-			switch ident := ident.(type) {
-			case *ast.Ident:
-				t := pack.TypesInfo.TypeOf(ident)
-				if t != nil {
-					switch t := t.(type) {
-					case *types.Named:
-						return structContainsCommPar(t, []*types.Named{t})
 
-					}
-				} else {
-					log.Print(pack.Name, ":", decl.Name.Name, ":", "MODEL ERROR = The type of the receiver of func ", decl.Name.Name, " could not be found ")
-				}
-			default:
-
-				log.Print(pack.Name, ":", decl.Name.Name, ",", "MODEL ERROR = The receiver of func ", decl.Name.Name, " was not an ident ", ident)
-
+			switch t := t.(type) {
+			case *types.Named:
+				return structContainsCommPar(t, []*types.Named{t})
 			}
+		default:
+			log.Print(pack.Name, ":", decl.Name.Name, ",", "MODEL ERROR = The receiver of func ", decl.Name.Name, " was not an ident ", ident)
 		}
 	}
 
@@ -181,39 +238,36 @@ func takesCommParAsParam(decl *ast.FuncDecl, pack *packages.Package) bool {
 
 func structContainsCommPar(t types.Type, seen []*types.Named) bool {
 	t = promela.GetElemIfPointer(t)
-	if t.String() == "sync.WaitGroup" || t.String() == "sync.Mutex" || t.String() == "sync.RWMutex" {
+	if t.String() == "sync.WaitGroup" ||
+		t.String() == "sync.Mutex" ||
+		t.String() == "sync.RWMutex" {
 		return true
 	}
+
 	switch t := t.Underlying().(type) {
 	case *types.Struct:
-
 		for i := 0; i < t.NumFields(); i++ {
-
 			field_type := promela.GetElemIfPointer(t.Field(i).Type())
 
 			switch field := field_type.(type) {
+			case *types.Chan:
+				return true
 			case *types.Struct:
 				if structContainsCommPar(field, seen) {
 					return true
 				}
 			case *types.Named:
 				contains := false
-
 				for _, s := range seen {
-					if s.String() == field.String() {
-						contains = true
-					}
+					contains = contains || s.String() == field.String()
 				}
-				if !contains {
-					if structContainsCommPar(field, append(seen, field)) {
-						return true
-					}
-				}
-			case *types.Chan:
-				return true
-			}
 
+				if contains || structContainsCommPar(field, append(seen, field)) {
+					return true
+				}
+			}
 		}
 	}
+
 	return false
 }

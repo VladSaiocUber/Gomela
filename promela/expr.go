@@ -57,15 +57,13 @@ func (m *Model) TranslateKnownExpr(expr ast.Expr) (promela_ast.Expr, []*CommPar)
 	case *ast.Ident, *ast.SelectorExpr:
 		known, ident := ContainsCommParam(m.CommPars, &CommPar{Name: &ast.Ident{Name: m.getIdent(expr).Name}})
 
-		var x string = ""
-
-		if known {
-			x = VAR_PREFIX + ident.Name.Name
-		} else {
+		if !known {
 			panic("expr.go => Should be known!")
 		}
 
-		prom_expr = &promela_ast.Ident{Name: x}
+		prom_expr = &promela_ast.Ident{
+			Name: VAR_PREFIX + ident.Name.Name,
+		}
 		commPars = append(commPars, ident)
 	case *ast.CallExpr:
 		switch ident := expr.Fun.(type) {
@@ -85,7 +83,11 @@ func (m *Model) TranslateKnownExpr(expr ast.Expr) (promela_ast.Expr, []*CommPar)
 			commPars = append(commPars, params1...)
 			rhs, params2 := m.TranslateKnownExpr(expr.Y)
 			commPars = append(commPars, params2...)
-			prom_expr = &promela_ast.BinaryExpr{Lhs: lhs, Rhs: rhs, Op: expr.Op.String()}
+			prom_expr = &promela_ast.BinaryExpr{
+				Lhs: lhs,
+				Rhs: rhs,
+				Op:  expr.Op.String(),
+			}
 		}
 	}
 
@@ -114,10 +116,9 @@ func (m *Model) FlagCommParamAsAlias(expr ast.Expr, originals []*CommPar) {
 	case *ast.CallExpr:
 		switch ident := expr.Fun.(type) {
 		case *ast.Ident:
-			if ident.Name == "len" || ident.Name == "int" || ident.Name == "uint" {
-				if len(expr.Args) > 0 {
-					m.FlagCommParamAsAlias(expr.Args[0], originals)
-				}
+			if (ident.Name == "len" || ident.Name == "int" || ident.Name == "uint") &&
+				len(expr.Args) > 0 {
+				m.FlagCommParamAsAlias(expr.Args[0], originals)
 			}
 		}
 	}

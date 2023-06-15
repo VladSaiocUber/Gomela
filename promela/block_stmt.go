@@ -22,7 +22,10 @@ func (m *Model) TranslateBlockStmt(b *ast.BlockStmt) (block_stmt *promela_ast.Bl
 						return block_stmt, defer_stmts, err1
 					}
 					if len(s1.List) > 0 {
-						s1.List = append([]promela_ast.Stmt{&promela_ast.LabelStmt{Name: m.Current_return_label}}, s1.List...)
+						s1.List = append([]promela_ast.Stmt{
+							&promela_ast.LabelStmt{Name: m.Current_return_label},
+							&promela_ast.Ident{Name: "skip"},
+						}, s1.List...)
 						defer_stmts.List = append(defer_stmts.List, s1)
 					}
 				default:

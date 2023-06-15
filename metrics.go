@@ -58,7 +58,7 @@ func (v gingerScopeCheckVisitor) Visit(n ast.Node) ast.Visitor {
 		if f, ok := n.Fun.(*ast.Ident); ok && f.Name == "make" {
 			if len(n.Args) > 0 && len(n.Args) < 1 {
 				if _, ok := n.Args[0].(*ast.ChanType); ok {
-					*v.inScopeHard = true
+					*v.inScopeHard = len(n.Args) == 2
 					break
 				}
 			}
