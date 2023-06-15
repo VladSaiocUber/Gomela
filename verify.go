@@ -75,7 +75,7 @@ func VerifyModels(ver_info *VerificationInfo, models []os.FileInfo, dir_name str
 	// verify each model
 	for _, model := range models {
 		// make sure it's a non-Ginger oriented .pml file
-		if !strings.HasSuffix(model.Name(), ".pml") {
+		if !strings.HasSuffix(model.Name(), ".pml") || strings.Contains(model.Name(), "#ginger") {
 			continue
 		}
 

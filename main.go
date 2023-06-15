@@ -116,6 +116,7 @@ func main() {
 		// parse how many comm pars are in the file
 
 		content, err := ioutil.ReadFile(model_to_verify)
+
 		if err != nil {
 			panic("Please provide a valid file , err : " + err.Error())
 		}
@@ -227,10 +228,8 @@ func sanityCheckFile(ver *VerificationInfo, path string, del bool) bool {
 
 	model := strings.Split(string(data), "/*")[0]
 
-	used := false
 	for _, line := range strings.Split(model, "\n") {
-		used = used ||
-			strings.Contains(line, ".update!") ||
+		if strings.Contains(line, ".update!") ||
 			strings.Contains(line, ".wait?") ||
 			strings.Contains(line, ".Lock!") ||
 			strings.Contains(line, ".Unlock!") ||
@@ -240,11 +239,9 @@ func sanityCheckFile(ver *VerificationInfo, path string, del bool) bool {
 			strings.Contains(line, ".rcving!") ||
 			strings.Contains(line, ".sending!") ||
 			strings.Contains(line, ".sync") ||
-			strings.Contains(line, ".enq!")
-	}
-
-	if used {
-		return true
+			strings.Contains(line, ".enq!") {
+			return true
+		}
 	}
 
 	for _, line := range strings.Split(model, "\n") {
