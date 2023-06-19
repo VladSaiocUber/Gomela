@@ -810,8 +810,10 @@ func isSubsetOfExpr(sub ast.Expr, sel ast.Expr) bool {
 		return isSubsetOfExpr(sub, sel.X)
 	case *ast.Ident:
 		idents := strings.Split(sel.Name, "_")
-		return len(idents) == 1 && IdenticalExpr(sub, sel) ||
-			isSubsetOfExpr(sub, exprsToSelector(idents))
+		if len(idents) == 1 {
+			return false
+		}
+		return isSubsetOfExpr(sub, exprsToSelector(idents))
 	}
 
 	return false
