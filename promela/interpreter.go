@@ -18,8 +18,8 @@ type ForCounter struct { // used to create the labels to jump to for for select 
 }
 
 func Print(m *Model) {
-
 	stmt := ""
+	m.Props.ContainsClose = true
 
 	// print meta-data
 
