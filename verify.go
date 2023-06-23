@@ -258,7 +258,7 @@ func verifyModel(ver_info *VerificationInfo, path string, model_name string, git
 			fmt.Printf("Close safety error : %s.\n", colorise(ver.Close_safety_error))
 			fmt.Printf("Negative counter safety error : %s.\n", colorise(ver.Negative_counter_safety_error))
 			fmt.Printf("Double unlock error : %s.\n", colorise(ver.Double_unlock))
-			fmt.Printf("Model deadlock : %s.\n", colorise(ver.Global_deadlock))
+			fmt.Printf("Model deadlock : %s.\n", colorise(len(blocked_operations) != 0))
 			fmt.Printf("Panic reached : %s.\n", colorise(ver.Panic_reached))
 
 			if ver.Global_deadlock {
