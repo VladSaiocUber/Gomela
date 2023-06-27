@@ -11,19 +11,19 @@ import (
 func (m *Model) translateRcvStmt(
 	e ast.Expr,
 	body *promela_ast.BlockStmt,
-	body2 *promela_ast.BlockStmt) (promela_ast.GuardStmt, *ParseError) {
+	body2 *promela_ast.BlockStmt) (promela_ast.GuardStmt, error) {
 
 	var guard promela_ast.GuardStmt
 
-	var err *ParseError
+	var err error
 
 	if m.containsChan(e) {
 		chan_name := m.getChanStruct(e)
 
 		guard = &GenRcvStmt{
-			Rcv:        m.Fileset.Position(e.Pos()),
+			Rcv:        m.Props.Fileset.Position(e.Pos()),
 			Chan:       chan_name.Name,
-			M:          m,
+			M:          m.Props,
 			Sync_body:  body,
 			Async_body: body2,
 		}
@@ -36,9 +36,7 @@ func (m *Model) translateRcvStmt(
 				Cond: &promela_ast.Ident{Name: "true"},
 				Body: body}
 		} else {
-			err = &ParseError{
-				err: errors.New(UNKNOWN_RCV + m.Fileset.Position(e.Pos()).String()),
-			}
+			err = errors.New(UNKNOWN_RCV + m.Props.Fileset.Position(e.Pos()).String())
 		}
 	}
 

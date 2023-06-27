@@ -7,12 +7,12 @@ import (
 )
 
 // take a go block stmt and returns its promela counterpart
-func (m *Model) TranslateBlockStmt(b *ast.BlockStmt) (block_stmt *promela_ast.BlockStmt, defer_stmts *promela_ast.BlockStmt, err *ParseError) {
+func (m *Model) TranslateBlockStmt(b *ast.BlockStmt) (block_stmt *promela_ast.BlockStmt, defer_stmts *promela_ast.BlockStmt, err error) {
 
 	block_stmt = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
 	defer_stmts = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
 	if b != nil {
-		block_stmt.Block = m.Fileset.Position(b.Pos())
+		block_stmt.Block = m.Props.Fileset.Position(b.Pos())
 		for _, stmt := range b.List {
 			if stmt != nil {
 				switch stmt := stmt.(type) {
@@ -22,13 +22,16 @@ func (m *Model) TranslateBlockStmt(b *ast.BlockStmt) (block_stmt *promela_ast.Bl
 						return block_stmt, defer_stmts, err1
 					}
 					if len(s1.List) > 0 {
-						s1.List = append([]promela_ast.Stmt{&promela_ast.LabelStmt{Name: m.Current_return_label}}, s1.List...)
+						s1.List = append([]promela_ast.Stmt{
+							&promela_ast.LabelStmt{Name: m.Current_return_label},
+							&promela_ast.Ident{Name: "skip"},
+						}, s1.List...)
 						defer_stmts.List = append(defer_stmts.List, s1)
 					}
 				default:
 					var s1 *promela_ast.BlockStmt = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
 					var defers *promela_ast.BlockStmt = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
-					var err1 *ParseError
+					var err1 error
 					switch stmt := stmt.(type) {
 					case *ast.AssignStmt:
 						s1, err1 = m.translateAssignStmt(stmt)

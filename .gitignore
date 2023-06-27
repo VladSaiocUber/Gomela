@@ -15,5 +15,5 @@ source/*/*
 source/*/*/*
 projects
 projects/*
-.vscode
 todo.txt
+.vscode

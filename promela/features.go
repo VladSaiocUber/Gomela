@@ -20,10 +20,6 @@ type Feature struct {
 }
 
 func CreateCSV(result_folder string) {
-	if result_folder[0] != '/' {
-		result_folder = "./" + result_folder
-	}
-
 	log_file, _ := os.OpenFile(result_folder+"/log.csv",
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	log.SetOutput(log_file)
@@ -39,8 +35,8 @@ func CreateCSV(result_folder string) {
 func logFeature(feature Feature, m *Model) {
 
 	name := strings.Split(
-		m.Fileset.Position(m.Fun.Pos()).Filename, m.Projects_folder+"/")
-	path := []string{m.Fileset.Position(m.Fun.Pos()).Filename}
+		m.Props.Fileset.Position(m.Fun.Pos()).Filename, m.Projects_folder+"/")
+	path := []string{m.Props.Fileset.Position(m.Fun.Pos()).Filename}
 
 	splitted := []string{""}
 	if len(name) > 1 {
@@ -61,7 +57,7 @@ func logFeature(feature Feature, m *Model) {
 	}
 
 	proj_name := strings.Replace(splitted[0], AUTHOR_PROJECT_SEP, "/", -1)
-	filename := "https://github.com/" + proj_name + "/blob/" + m.Commit + "/" + file_path + "#L" + strconv.Itoa(m.Fileset.Position(m.Fun.Pos()).Line)
+	filename := "https://github.com/" + proj_name + "/blob/" + m.Commit + "/" + file_path + "#L" + strconv.Itoa(m.Props.Fileset.Position(m.Fun.Pos()).Line)
 
 	toPrint :=
 		proj_name + "," +

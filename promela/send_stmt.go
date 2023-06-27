@@ -8,7 +8,7 @@ import (
 	"go/ast"
 )
 
-func (m *Model) translateSendStmt(s *ast.SendStmt) (b *promela_ast.BlockStmt, err *ParseError) {
+func (m *Model) translateSendStmt(s *ast.SendStmt) (b *promela_ast.BlockStmt, err error) {
 	b = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
 
 	var guard promela_ast.GuardStmt
@@ -20,7 +20,7 @@ func (m *Model) translateSendStmt(s *ast.SendStmt) (b *promela_ast.BlockStmt, er
 	})
 
 	if_stmt := &promela_ast.IfStmt{
-		If:    m.Fileset.Position(s.Pos()),
+		If:    m.Props.Fileset.Position(s.Pos()),
 		Model: "Send",
 		Init: &promela_ast.BlockStmt{
 			List: []promela_ast.Stmt{},
@@ -40,7 +40,7 @@ func (m *Model) translateSendStmt(s *ast.SendStmt) (b *promela_ast.BlockStmt, er
 
 }
 
-func (m *Model) generateGenSendStmt(e ast.Expr, body *promela_ast.BlockStmt, body2 *promela_ast.BlockStmt) (g promela_ast.GuardStmt, err *ParseError) {
+func (m *Model) generateGenSendStmt(e ast.Expr, body *promela_ast.BlockStmt, body2 *promela_ast.BlockStmt) (g promela_ast.GuardStmt, err error) {
 
 	if m.containsChan(e) {
 
@@ -48,15 +48,15 @@ func (m *Model) generateGenSendStmt(e ast.Expr, body *promela_ast.BlockStmt, bod
 		chan_name := m.getChanStruct(e)
 
 		g = &GenSendStmt{
-			Send:       m.Fileset.Position(e.Pos()),
+			Send:       m.Props.Fileset.Position(e.Pos()),
 			Chan:       chan_name.Name,
-			M:          m,
+			M:          m.Props,
 			Sync_body:  body,
 			Async_body: body2,
 		}
 
 	} else {
-		err = &ParseError{err: errors.New(UNKNOWN_SEND + m.Fileset.Position(e.Pos()).String())}
+		err = errors.New(UNKNOWN_SEND + m.Props.Fileset.Position(e.Pos()).String())
 	}
 
 	return g, err

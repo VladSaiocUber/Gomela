@@ -16,7 +16,13 @@ import (
 	"github.com/nicolasdilley/gomela/promela/promela_types"
 )
 
-func (m *Model) TranslateGoStmt(s *ast.GoStmt, isMain bool) (b *promela_ast.BlockStmt, err *ParseError) {
+func (m *Model) TranslateGoStmt(s *ast.GoStmt, isMain bool) (b *promela_ast.BlockStmt, err error) {
+	defer func() {
+		if pnc := recover(); pnc != nil {
+			err = fmt.Errorf("%s", pnc)
+		}
+	}()
+
 	b = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
 
 	var func_name string // The corresponding promela function name consisting of package + fun + num of param + len(proctypes)
@@ -33,9 +39,9 @@ func (m *Model) TranslateGoStmt(s *ast.GoStmt, isMain bool) (b *promela_ast.Bloc
 		new_call_expr = s.Call
 	} else {
 		var pack string
-		var err1 *ParseError
+		var err1 error
 
-		decl, new_call_expr, pack, err1 = m.findFunDecl(call_expr)
+		decl, new_call_expr, pack, err1 = m.FindFunDecl(call_expr)
 
 		pack_name = pack
 		if err1 != nil {
@@ -49,20 +55,20 @@ func (m *Model) TranslateGoStmt(s *ast.GoStmt, isMain bool) (b *promela_ast.Bloc
 		for _, f := range m.RecFuncs {
 			if decl.Name.Name == f.Name && m.Package == f.Pkg {
 				if decl.Pos() == f.Decl.Pos() {
-					return b, &ParseError{err: errors.New(RECURSIVE_FUNCTION + m.Fileset.Position(decl.Pos()).String())}
+					return b, errors.New(RECURSIVE_FUNCTION + m.Props.Fileset.Position(decl.Pos()).String())
 				}
 			}
 		}
 
 		// check if its a call on a struct that contains a chan, mutex or wgs
 
-		func_name = decl.Name.Name + fmt.Sprint(m.Fileset.Position(decl.Pos()).Line)
+		func_name = decl.Name.Name + fmt.Sprint(m.Props.Fileset.Position(decl.Pos()).Line)
 
 		new_mod := m.newModel(pack_name, decl)
 
 		new_mod.RecFuncs = append(new_mod.RecFuncs, RecFunc{Pkg: m.Package, Name: decl.Name.Name, Decl: decl})
 
-		var err1 *ParseError
+		var err1 error
 		new_mod.CommPars, err1 = new_mod.AnalyseCommParam(pack_name, decl, m.AstMap, false) // recover the commPar
 		//. Create a define for each mandatory param
 
@@ -84,17 +90,15 @@ func (m *Model) TranslateGoStmt(s *ast.GoStmt, isMain bool) (b *promela_ast.Bloc
 		for _, arg := range call_expr.Args {
 
 			stmt, err1 := m.TranslateExpr(arg)
-
-			if err1 == nil {
-				for _, e := range stmt.List {
-					switch e := e.(type) {
-					case *promela_ast.RcvStmt:
-
-						b.List = append(b.List, e)
-					}
-				}
-			} else {
+			if err1 != nil {
 				return b, err1
+			}
+
+			for _, e := range stmt.List {
+				switch e := e.(type) {
+				case *promela_ast.RcvStmt:
+					b.List = append(b.List, e)
+				}
 			}
 		}
 	}
@@ -103,15 +107,15 @@ func (m *Model) TranslateGoStmt(s *ast.GoStmt, isMain bool) (b *promela_ast.Bloc
 }
 
 // s can be either the go stmt or the call expr
-func (m *Model) translateCommParams(new_mod *Model, isGo bool, call_expr *ast.CallExpr, func_name string, decl *ast.FuncDecl, params []*promela_ast.Param, args []promela_ast.Expr, isMain bool) (*promela_ast.BlockStmt, *ParseError) {
+func (m *Model) translateCommParams(new_mod *Model, isGo bool, call_expr *ast.CallExpr, func_name string, decl *ast.FuncDecl, params []promela_ast.Expr, args []promela_ast.Expr, isMain bool) (*promela_ast.BlockStmt, error) {
 
 	b := &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
-	prom_call := &promela_ast.CallExpr{Fun: &promela_ast.Ident{Name: func_name}, Call: m.Fileset.Position(call_expr.Pos())}
+	prom_call := &promela_ast.CallExpr{Fun: &promela_ast.Ident{Name: func_name}, Call: m.Props.Fileset.Position(call_expr.Pos())}
 
 	prom_call.Args = args
 	proc := &promela_ast.Proctype{
 		Name:   &promela_ast.Ident{Name: func_name},
-		Pos:    m.Fileset.Position(call_expr.Pos()),
+		Pos:    m.Props.Fileset.Position(call_expr.Pos()),
 		Active: false,
 		Body:   &promela_ast.BlockStmt{List: []promela_ast.Stmt{}},
 		Params: params,
@@ -167,10 +171,10 @@ func (m *Model) translateCommParams(new_mod *Model, isGo bool, call_expr *ast.Ca
 			} else {
 				proc.Params = append(proc.Params, &promela_ast.Param{Name: VAR_PREFIX + commPar.Name.Name, Types: promela_types.Int})
 
-				arg := TranslateIdent(call_expr.Args[commPar.Pos], m.Fileset)
+				arg := TranslateIdent(call_expr.Args[commPar.Pos], m.Props.Fileset)
 
 				if found, _ := ContainsCommParam(m.CommPars, &CommPar{Name: &ast.Ident{Name: arg.Name}}); found {
-					prom_call.Args = append(prom_call.Args, &promela_ast.Ident{Name: VAR_PREFIX + arg.Name, Ident: m.Fileset.Position(call_expr.Pos())})
+					prom_call.Args = append(prom_call.Args, &promela_ast.Ident{Name: VAR_PREFIX + arg.Name, Ident: m.Props.Fileset.Position(call_expr.Pos())})
 				} else {
 
 					var ident *promela_ast.Ident
@@ -182,7 +186,7 @@ func (m *Model) translateCommParams(new_mod *Model, isGo bool, call_expr *ast.Ca
 							for _, expr := range exprs {
 
 								// This is for accounting cases where an actual commParam args is a + b where a is known and b isnt. therefore we need to create a new def for b
-								if found, _ := ContainsCommParam(m.CommPars, &CommPar{Name: &ast.Ident{Name: TranslateIdent(expr, m.Fileset).Name}}); !found {
+								if found, _ := ContainsCommParam(m.CommPars, &CommPar{Name: &ast.Ident{Name: TranslateIdent(expr, m.Props.Fileset).Name}}); !found {
 									// need to create a not found for it
 
 									rhs := ""
@@ -193,12 +197,13 @@ func (m *Model) translateCommParams(new_mod *Model, isGo bool, call_expr *ast.Ca
 									}
 
 									var buff *bytes.Buffer = bytes.NewBuffer([]byte{})
-									printer.Fprint(buff, m.Fileset, commPar.Expr)
-									rhs += string(buff.Bytes()) + " line " + strconv.Itoa(m.Fileset.Position(commPar.Expr.Pos()).Line)
-									ident := &promela_ast.Ident{Name: VAR_PREFIX + TranslateIdent(expr, m.Fileset).Name}
+									printer.Fprint(buff, m.Props.Fileset, commPar.Expr)
+									rhs += buff.String() + " line " + strconv.Itoa(m.Props.Fileset.Position(commPar.Expr.Pos()).Line)
+									ident := &promela_ast.Ident{Name: VAR_PREFIX + TranslateIdent(expr, m.Props.Fileset).Name}
 									m.Defines = append(m.Defines, promela_ast.DefineStmt{
 										Name: &promela_ast.Ident{Name: DEF_PREFIX + ident.Name},
-										Rhs:  &promela_ast.Ident{Name: rhs}})
+										Rhs:  &promela_ast.Ident{Name: rhs},
+									})
 
 									b.List = append(b.List, &promela_ast.DeclStmt{
 										Name:  ident,
@@ -212,7 +217,7 @@ func (m *Model) translateCommParams(new_mod *Model, isGo bool, call_expr *ast.Ca
 							ident = arg
 							prom_call.Args = append(prom_call.Args, ident)
 						} else {
-							ident = &promela_ast.Ident{Name: "not_found_" + strconv.Itoa(m.Fileset.Position(call_expr.Pos()).Line)}
+							ident = &promela_ast.Ident{Name: "not_found_" + strconv.Itoa(m.Props.Fileset.Position(call_expr.Pos()).Line)}
 
 							rhs := ""
 							if commPar.Mandatory {
@@ -222,8 +227,8 @@ func (m *Model) translateCommParams(new_mod *Model, isGo bool, call_expr *ast.Ca
 							}
 
 							var buff *bytes.Buffer = bytes.NewBuffer([]byte{})
-							printer.Fprint(buff, m.Fileset, commPar.Expr)
-							rhs += string(buff.Bytes()) + " line " + strconv.Itoa(m.Fileset.Position(commPar.Expr.Pos()).Line)
+							printer.Fprint(buff, m.Props.Fileset, commPar.Expr)
+							rhs += buff.String() + " line " + strconv.Itoa(m.Props.Fileset.Position(commPar.Expr.Pos()).Line)
 
 							m.Defines = append(m.Defines, promela_ast.DefineStmt{Name: ident, Rhs: &promela_ast.Ident{Name: rhs}})
 							prom_call.Args = append(prom_call.Args, ident)
@@ -245,8 +250,8 @@ func (m *Model) translateCommParams(new_mod *Model, isGo bool, call_expr *ast.Ca
 						}
 
 						var buff *bytes.Buffer = bytes.NewBuffer([]byte{})
-						printer.Fprint(buff, m.Fileset, commPar.Expr)
-						rhs += string(buff.Bytes()) + " line " + strconv.Itoa(m.Fileset.Position(commPar.Expr.Pos()).Line)
+						printer.Fprint(buff, m.Props.Fileset, commPar.Expr)
+						rhs += buff.String() + " line " + strconv.Itoa(m.Props.Fileset.Position(commPar.Expr.Pos()).Line)
 
 						m.Defines = append(m.Defines, promela_ast.DefineStmt{Name: ident, Rhs: &promela_ast.Ident{Name: rhs}})
 						prom_call.Args = append(prom_call.Args, ident)
@@ -264,17 +269,13 @@ func (m *Model) translateCommParams(new_mod *Model, isGo bool, call_expr *ast.Ca
 				Info:      commPar.Name.Name,
 				Line:      0,
 				Commit:    m.Commit,
-				Filename:  m.Fileset.Position(m.Fun.Pos()).Filename,
+				Filename:  m.Props.Fileset.Position(m.Fun.Pos()).Filename,
 			})
 		}
 	}
-	prom_call.Fun = &promela_ast.Ident{Name: func_name, Ident: m.Fileset.Position(call_expr.Pos())}
+	prom_call.Fun = &promela_ast.Ident{Name: func_name, Ident: m.Props.Fileset.Position(call_expr.Pos())}
 
 	m.addNewProctypes(new_mod) // adding the new proctypes create in the new model
-
-	m.ContainsChan = m.ContainsChan || new_mod.ContainsChan
-	m.ContainsWg = m.ContainsWg || new_mod.ContainsWg
-	m.ContainsMutexes = m.ContainsMutexes || new_mod.ContainsMutexes
 
 	child_func_name := "child_" + func_name + strconv.Itoa(m.Counter)
 	prom_call.Args = append(prom_call.Args, &promela_ast.Ident{Name: child_func_name})
@@ -292,12 +293,11 @@ func (m *Model) translateCommParams(new_mod *Model, isGo bool, call_expr *ast.Ca
 		b.List = append(b.List, &promela_ast.RcvStmt{Chan: &promela_ast.Ident{Name: child_func_name}, Rhs: &promela_ast.Ident{Name: "0"}})
 	} else {
 		// Add the receiver call
-		b.List = append(b.List, &promela_ast.RunStmt{
-			X: &promela_ast.CallExpr{
-				Fun: &promela_ast.Ident{
-					Name: "receiver"},
-				Args: []promela_ast.Expr{&promela_ast.Ident{Name: child_func_name}}}})
-		m.ContainsReceiver = true
+		b.List = append(b.List, &GenReceiver{
+			Name: child_func_name,
+			M:    m.Props,
+		})
+		m.Props.ContainsReceiver = true
 	}
 
 	if isMain {
@@ -309,10 +309,10 @@ func (m *Model) translateCommParams(new_mod *Model, isGo bool, call_expr *ast.Ca
 	return b, nil
 }
 
-func (m *Model) translateParams(new_mod *Model, decl *ast.FuncDecl, call_expr *ast.CallExpr, isMain bool) ([]*promela_ast.Param, []promela_ast.Expr, bool, bool, *ParseError) {
+func (m *Model) translateParams(new_mod *Model, decl *ast.FuncDecl, call_expr *ast.CallExpr, isMain bool) ([]promela_ast.Expr, []promela_ast.Expr, bool, bool, error) {
 	hasChan := isMain
 	known := true
-	params := []*promela_ast.Param{}
+	params := []promela_ast.Expr{}
 	args := []promela_ast.Expr{}
 
 	counter := 0
@@ -329,8 +329,12 @@ func (m *Model) translateParams(new_mod *Model, decl *ast.FuncDecl, call_expr *a
 				hasChan = true
 				if m.containsChan(call_expr.Args[counter]) {
 					chan_name := name.Name + CHAN_NAME
-					params = append(params, &promela_ast.Param{Name: chan_name, Types: promela_types.Chandef})
-					new_mod.Chans[name] = &ChanStruct{Name: &promela_ast.Ident{Name: chan_name}, Chan: m.Fileset.Position(name.Pos())}
+					params = append(params, &GenChanParam{
+						Pos:  m.Props.Fileset.Position(sel.Begin),
+						Name: chan_name,
+						M:    m.Props,
+					})
+					new_mod.Chans[name] = &ChanStruct{Name: &promela_ast.Ident{Name: chan_name}, Chan: m.Props.Fileset.Position(name.Pos())}
 
 					ch := m.getChanStruct(call_expr.Args[counter])
 
@@ -345,7 +349,7 @@ func (m *Model) translateParams(new_mod *Model, decl *ast.FuncDecl, call_expr *a
 						if sel.Sel.Name == "WaitGroup" {
 							hasChan = true
 							if m.containsWaitgroup(call_expr.Args[counter]) {
-								wg := &WaitGroupStruct{Name: &promela_ast.Ident{Name: name.Name, Ident: m.Fileset.Position(name.Pos())}, Wait: m.Fileset.Position(name.Pos())}
+								wg := &WaitGroupStruct{Name: &promela_ast.Ident{Name: name.Name, Ident: m.Props.Fileset.Position(name.Pos())}, Wait: m.Props.Fileset.Position(name.Pos())}
 								params = append(params, &promela_ast.Param{Name: name.Name, Types: promela_types.Wgdef})
 								new_mod.WaitGroups[name] = wg
 								arg := call_expr.Args[counter]
@@ -355,7 +359,7 @@ func (m *Model) translateParams(new_mod *Model, decl *ast.FuncDecl, call_expr *a
 									arg = unary.X
 								}
 
-								ident := &promela_ast.Ident{Name: m.getIdent(arg).Name, Ident: m.Fileset.Position(call_expr.Pos())}
+								ident := &promela_ast.Ident{Name: m.getIdent(arg).Name, Ident: m.Props.Fileset.Position(call_expr.Pos())}
 								args = append(args, ident)
 							} else {
 								known = false
@@ -373,7 +377,7 @@ func (m *Model) translateParams(new_mod *Model, decl *ast.FuncDecl, call_expr *a
 									arg = unary.X
 								}
 
-								ident := &promela_ast.Ident{Name: m.getIdent(arg).Name, Ident: m.Fileset.Position(call_expr.Pos())}
+								ident := &promela_ast.Ident{Name: m.getIdent(arg).Name, Ident: m.Props.Fileset.Position(call_expr.Pos())}
 								args = append(args, ident)
 
 							} else {
@@ -394,27 +398,28 @@ func (m *Model) translateParams(new_mod *Model, decl *ast.FuncDecl, call_expr *a
 
 // func (m *Model) GenerateParamAndArg(arg ast.Expr, t promela_types.Types) ([]*promela_ast.Param, []promela_ast.Expr) {
 // 	name := translateIdent(arg).Name
-// 	p := &promela_ast.Param{Name: name, Pos: m.Fileset.Position(arg.Pos()), Types: t}
+// 	p := &promela_ast.Param{Name: name, Pos: m.Props.Fileset.Position(arg.Pos()), Types: t}
 // 	e := &promela_ast.Ident{Name: name}
 
 // 	return p, e
 // }
 
-func (m *Model) findFunDecl(call_expr *ast.CallExpr) (*ast.FuncDecl, *ast.CallExpr, string, *ParseError) {
+func (m *Model) FindFunDecl(call_expr *ast.CallExpr) (*ast.FuncDecl, *ast.CallExpr, string, error) {
 	pack_name := m.Package
 
 	switch name := call_expr.Fun.(type) {
 	case *ast.FuncLit: // in the case we have an anonymous func call
-
 		fun_decl := &ast.FuncDecl{
-			Body: &ast.BlockStmt{List: []ast.Stmt{}},
+			Body: name.Body,
 			Type: &ast.FuncType{
 				Params: &ast.FieldList{List: append([]*ast.Field{}, name.Type.Params.List...)},
 			},
 		}
-		func_name := fmt.Sprint("Anonymous", m.Fun.Name.Name, m.Fileset.Position(name.Pos()).Line)
-		ident := &ast.Ident{Name: func_name, NamePos: name.Pos()}
-		fun_decl.Name = ident
+		func_name := fmt.Sprint("Anonymous", m.Fun.Name.Name, m.Props.Fileset.Position(name.Pos()).Line)
+		fun_decl.Name = &ast.Ident{
+			Name:    func_name,
+			NamePos: name.Pos(),
+		}
 		fun_decl.Body = name.Body
 
 		var exprs []ast.Expr
@@ -432,10 +437,12 @@ func (m *Model) findFunDecl(call_expr *ast.CallExpr) (*ast.FuncDecl, *ast.CallEx
 
 		ch_names := []*ast.Ident{}
 		for ch, _ := range m.Chans {
-			if !containsExpr(exprs, ch) {
-				ch_names = append(ch_names, &ast.Ident{Name: TranslateIdent(ch, m.Fileset).Name, NamePos: ch.Pos()})
-				new_call_expr.Args = append(new_call_expr.Args, ch)
+			if containsExpr(exprs, ch) {
+				continue
 			}
+
+			ch_names = append(ch_names, &ast.Ident{Name: TranslateIdent(ch, m.Props.Fileset).Name, NamePos: ch.Pos()})
+			new_call_expr.Args = append(new_call_expr.Args, ch)
 		}
 		if len(ch_names) > 0 {
 			fun_decl.Type.Params.List = append(fun_decl.Type.Params.List, &ast.Field{Names: ch_names, Type: &ast.ChanType{Value: &ast.Ident{Name: "int"}}})
@@ -443,10 +450,12 @@ func (m *Model) findFunDecl(call_expr *ast.CallExpr) (*ast.FuncDecl, *ast.CallEx
 		wg_names := []*ast.Ident{}
 
 		for wg, _ := range m.WaitGroups {
-			if !containsExpr(exprs, wg) {
-				wg_names = append(wg_names, &ast.Ident{Name: TranslateIdent(wg, m.Fileset).Name, NamePos: wg.Pos()})
-				new_call_expr.Args = append(new_call_expr.Args, wg)
+			if containsExpr(exprs, wg) {
+				continue
 			}
+
+			wg_names = append(wg_names, &ast.Ident{Name: TranslateIdent(wg, m.Props.Fileset).Name, NamePos: wg.Pos()})
+			new_call_expr.Args = append(new_call_expr.Args, wg)
 		}
 
 		if len(wg_names) > 0 {
@@ -460,7 +469,7 @@ func (m *Model) findFunDecl(call_expr *ast.CallExpr) (*ast.FuncDecl, *ast.CallEx
 
 		for _, mu := range m.Mutexes {
 			if !containsExpr(exprs, mu) {
-				mu_names = append(mu_names, &ast.Ident{Name: TranslateIdent(mu, m.Fileset).Name, NamePos: mu.Pos()})
+				mu_names = append(mu_names, &ast.Ident{Name: TranslateIdent(mu, m.Props.Fileset).Name, NamePos: mu.Pos()})
 				new_call_expr.Args = append(new_call_expr.Args, mu)
 			}
 		}
@@ -485,42 +494,41 @@ func (m *Model) findFunDecl(call_expr *ast.CallExpr) (*ast.FuncDecl, *ast.CallEx
 		return fun_decl, &new_call_expr, pack_name, nil
 
 	default:
-
-		if found, decl, pack_name := m.FindDecl(call_expr); found {
-
+		found, decl, pack_name := m.FindDecl(call_expr)
+		if found {
 			for _, field := range decl.Type.Params.List {
 				switch field.Type.(type) {
 				case *ast.Ellipsis:
-					return nil, nil, pack_name, &ParseError{err: errors.New(ELLIPSIS + m.Fileset.Position(call_expr.Pos()).String())}
+					return nil, nil, pack_name, errors.New(ELLIPSIS + m.Props.Fileset.Position(call_expr.Pos()).String())
 				}
 			}
 			new_decl, new_call_expr := m.updateDeclWithRcvAndStructs(*decl, call_expr)
-
 			return new_decl, new_call_expr, pack_name, nil
-		} else { // The declaration of the function could not be found
-			// If the goroutines takes one of our channel as input return an error
-			// Otherwise check if the args are a receive on a channel
-			for _, arg := range call_expr.Args {
-				expr := arg
-				switch arg := arg.(type) {
-				case *ast.UnaryExpr:
-					if arg.Op != token.ARROW {
-						expr = arg.X
-					}
-				}
-				if m.isChan(expr) || m.isWaitgroup(expr) || m.isMutex(expr) {
-					return nil, nil, pack_name, &ParseError{err: errors.New(UNKNOWN_DECL + fmt.Sprint(m.Fileset.Position(call_expr.Fun.Pos())))}
+		}
+
+		// The declaration of the function could not be found
+		// If the goroutines takes one of our channel as input return an error
+		// Otherwise check if the args are a receive on a channel
+		for _, arg := range call_expr.Args {
+			expr := arg
+			switch arg := arg.(type) {
+			case *ast.UnaryExpr:
+				if arg.Op != token.ARROW {
+					expr = arg.X
 				}
 			}
-
-			// also check if the function is not a method on a struct that contains
-			// a mutex, a chan or a wg !
-			if m.isStructWithChans(call_expr.Fun) {
-				return nil, nil, pack_name, &ParseError{err: errors.New(UNKNOWN_DECL + fmt.Sprint(m.Fileset.Position(call_expr.Fun.Pos())))}
+			if m.isChan(expr) || m.isWaitgroup(expr) || m.isMutex(expr) {
+				return nil, nil, pack_name, errors.New(UNKNOWN_DECL + fmt.Sprint(m.Props.Fileset.Position(call_expr.Fun.Pos())))
 			}
+		}
 
+		// also check if the function is not a method on a struct that contains
+		// a mutex, a chan or a wg !
+		if m.isStructWithChans(call_expr.Fun) {
+			return nil, nil, pack_name, errors.New(UNKNOWN_DECL + fmt.Sprint(m.Props.Fileset.Position(call_expr.Fun.Pos())))
 		}
 	}
+
 	return nil, nil, pack_name, nil
 }
 
@@ -590,94 +598,90 @@ func (m *Model) updateDeclWithRcvAndStructs(decl ast.FuncDecl, call_expr *ast.Ca
 		case *ast.SelectorExpr:
 			isConcurrent = t.Sel.Name == "WaitGroup" || t.Sel.Name == "Mutex" || t.Sel.Name == "RWMutex"
 		}
-		if !isConcurrent {
 
-			fields_to_add := []*ast.Field{}
-			args_to_add := []ast.Expr{}
-
-			new_counter := counter
-			for _, name := range field.Names {
-				if len(new_call_expr.Args) > new_counter {
-					s := new_call_expr.Args[new_counter]
-					exprs_in_rcv := [][]ast.Expr{}
-
-					chans := []ast.Expr{}
-					for name, _ := range m.Chans {
-
-						chans = append(chans, name)
-					}
-
-					exprs_in_rcv = append(exprs_in_rcv, addIdenticalSelectorExprs(chans, s))
-
-					wgs := []ast.Expr{}
-					for name, _ := range m.WaitGroups {
-						wgs = append(wgs, name)
-					}
-
-					exprs_in_rcv = append(exprs_in_rcv, addIdenticalSelectorExprs(wgs, s))
-					mutexes := []ast.Expr{}
-
-					for _, name := range m.Mutexes {
-						mutexes = append(mutexes, name)
-					}
-
-					exprs_in_rcv = append(exprs_in_rcv, addIdenticalSelectorExprs(mutexes, s))
-
-					// adding chans and wg
-					chans_fields := generateFields(s, name, exprs_in_rcv[0], &ast.ChanType{})
-					wgs_fields := generateFields(s, name, exprs_in_rcv[1], &ast.StarExpr{
-						X: &ast.SelectorExpr{
-							X:   &ast.Ident{Name: "sync"},
-							Sel: &ast.Ident{Name: "WaitGroup"},
-						},
-					})
-
-					mutexes_fields := generateFields(s, name, exprs_in_rcv[2], &ast.StarExpr{
-						X: &ast.SelectorExpr{
-							X:   &ast.Ident{Name: "sync"},
-							Sel: &ast.Ident{Name: "Mutex"},
-						},
-					})
-					fields_to_add = append(chans_fields, wgs_fields...)
-
-					fields_to_add = append(fields_to_add, mutexes_fields...)
-
-					for _, exprs := range exprs_in_rcv {
-						for _, expr := range exprs {
-							args_to_add = append(args_to_add, expr)
-						}
-					}
-
-					// Add the new parameter to the function decleration
-					params_list.List = append(params_list.List, fields_to_add...)
-					new_args = append(new_args, args_to_add...)
-
-					// Add the new args of the function
-					new_counter++
-				}
-			}
-
-			if len(args_to_add) == 0 && len(fields_to_add) == 0 {
-				for range field.Names {
-
-					if len(new_call_expr.Args) > counter {
-						new_args = append(new_args, new_call_expr.Args[counter])
-						counter++
-					}
-				}
-				params_list.List = append(params_list.List, field)
-			} else {
-				counter = new_counter
-			}
-
-		} else {
+		if isConcurrent {
 
 			params_list.List = append(params_list.List, field)
 			for range field.Names {
 				new_args = append(new_args, new_call_expr.Args[counter])
 				counter++
 			}
+			continue
 		}
+
+		fields_to_add := []*ast.Field{}
+		args_to_add := []ast.Expr{}
+
+		new_counter := counter
+		for _, name := range field.Names {
+			if len(new_call_expr.Args) <= new_counter {
+				continue
+			}
+
+			s := new_call_expr.Args[new_counter]
+			exprs_in_rcv := [][]ast.Expr{}
+
+			chans := []ast.Expr{}
+			for name := range m.Chans {
+				chans = append(chans, name)
+			}
+
+			exprs_in_rcv = append(exprs_in_rcv, addIdenticalSelectorExprs(chans, s))
+
+			wgs := []ast.Expr{}
+			for name := range m.WaitGroups {
+				wgs = append(wgs, name)
+			}
+
+			exprs_in_rcv = append(exprs_in_rcv, addIdenticalSelectorExprs(wgs, s))
+			mutexes := []ast.Expr{}
+
+			mutexes = append(mutexes, m.Mutexes...)
+
+			exprs_in_rcv = append(exprs_in_rcv, addIdenticalSelectorExprs(mutexes, s))
+
+			// adding chans and wg
+			chans_fields := generateFields(s, name, exprs_in_rcv[0], &ast.ChanType{})
+			wgs_fields := generateFields(s, name, exprs_in_rcv[1], &ast.StarExpr{
+				X: &ast.SelectorExpr{
+					X:   &ast.Ident{Name: "sync"},
+					Sel: &ast.Ident{Name: "WaitGroup"},
+				},
+			})
+
+			mutexes_fields := generateFields(s, name, exprs_in_rcv[2], &ast.StarExpr{
+				X: &ast.SelectorExpr{
+					X:   &ast.Ident{Name: "sync"},
+					Sel: &ast.Ident{Name: "Mutex"},
+				},
+			})
+			fields_to_add = append(chans_fields, wgs_fields...)
+			fields_to_add = append(fields_to_add, mutexes_fields...)
+
+			for _, exprs := range exprs_in_rcv {
+				args_to_add = append(args_to_add, exprs...)
+			}
+
+			// Add the new parameter to the function decleration
+			params_list.List = append(params_list.List, fields_to_add...)
+			new_args = append(new_args, args_to_add...)
+
+			// Add the new args of the function
+			new_counter++
+		}
+
+		if len(args_to_add) > 0 || len(fields_to_add) > 0 {
+			counter = new_counter
+			continue
+		}
+
+		for range field.Names {
+			if len(new_call_expr.Args) > counter {
+				new_args = append(new_args, new_call_expr.Args[counter])
+				counter++
+			}
+		}
+		params_list.List = append(params_list.List, field)
 	}
 
 	func_type.Params = params_list
@@ -702,14 +706,11 @@ func generateFields(call_expr ast.Expr, rcv_name *ast.Ident, exprs []ast.Expr, t
 	for _, expr := range exprs {
 		fields = append(fields,
 			&ast.Field{
-				Names: []*ast.Ident{
-					&ast.Ident{
-						Name: translateIdent(renameBaseOfExprWithOther(expr, sub_expr, rcv_name)).Name,
-					},
-				},
+				Names: []*ast.Ident{{
+					Name: translateIdent(renameBaseOfExprWithOther(expr, sub_expr, rcv_name)).Name,
+				}},
 				Type: t,
 			})
-
 	}
 
 	return fields
@@ -737,18 +738,17 @@ func renameBaseOfExprWithOther(from ast.Expr, old ast.Expr, n *ast.Ident) ast.Ex
 }
 
 func exprsToSelector(exprs []string) ast.Expr {
-	if len(exprs) == 1 {
+	switch {
+	case len(exprs) == 1:
 		return &ast.Ident{Name: exprs[0]}
-	}
-	if len(exprs) > 2 {
+	case len(exprs) > 2:
 		return &ast.SelectorExpr{X: exprsToSelector(exprs[:len(exprs)-1]), Sel: &ast.Ident{Name: exprs[len(exprs)-1]}}
-	} else {
-		return &ast.SelectorExpr{X: &ast.Ident{Name: exprs[0]}, Sel: &ast.Ident{Name: exprs[1]}}
 	}
+
+	return &ast.SelectorExpr{X: &ast.Ident{Name: exprs[0]}, Sel: &ast.Ident{Name: exprs[1]}}
 }
 
 func replaceExpr(from ast.Expr, old ast.Expr, n *ast.Ident) ast.Expr {
-
 	if IdenticalExpr(from, old) {
 		return n
 	}
@@ -759,7 +759,6 @@ func replaceExpr(from ast.Expr, old ast.Expr, n *ast.Ident) ast.Expr {
 	default:
 		panic("Cannot find subset")
 	}
-
 }
 
 // Add the expression in exprs that contains s.
@@ -802,28 +801,20 @@ func addIdenticalSelectorExprs(exprs []ast.Expr, s ast.Expr) []ast.Expr {
 
 // check if sub is contained in set (t, t.wg) > yes, (t.t, t.wg) > no, (t.t, t.t.wg) > Yes
 func isSubsetOfExpr(sub ast.Expr, sel ast.Expr) bool {
-
 	if IdenticalExpr(sub, sel) {
 		return true
 	}
+
 	switch sel := sel.(type) {
 	case *ast.SelectorExpr:
-
-		if !IdenticalExpr(sub, sel) {
-
-			return isSubsetOfExpr(sub, sel.X)
-
-		} else {
-			return true
-		}
+		return isSubsetOfExpr(sub, sel.X)
 	case *ast.Ident:
 		idents := strings.Split(sel.Name, "_")
 		if len(idents) == 1 {
-
-			return IdenticalExpr(sub, sel)
+			return false
 		}
-
 		return isSubsetOfExpr(sub, exprsToSelector(idents))
 	}
+
 	return false
 }

@@ -12,7 +12,7 @@ type Proctype struct {
 	Pos    token.Position
 	Active bool       // is it an active process ?
 	Body   *BlockStmt // the body of the process
-	Params []*Param
+	Params []Expr
 	Decl   *ast.FuncDecl
 }
 
@@ -41,15 +41,15 @@ func (p *Proctype) Print(num_tabs int) (stmt string) {
 	num_msgs := &DeclStmt{Name: &Ident{Name: "num_msgs"}, Types: promela_types.Int}
 	p.Body.List = append([]Stmt{decl, state, num_msgs}, p.Body.List...)
 	stmt += ") {\n"
-	stmt += "\tbool closed-> \n"
-	stmt += "\tbool ok-> \n"
+	stmt += "\tbool closed; \n"
+	stmt += "\tbool ok; \n"
 	stmt += p.Body.Print(num_tabs + 1)
 	stmt += "\n}\n"
 
 	return
 }
 func (s *Proctype) Clone() Stmt {
-	s1 := &Proctype{Pos: s.Pos, Name: s.Name.Clone().(*Ident), Body: s.Body.Clone().(*BlockStmt), Active: s.Active, Params: []*Param{}}
+	s1 := &Proctype{Pos: s.Pos, Name: s.Name.Clone().(*Ident), Body: s.Body.Clone().(*BlockStmt), Active: s.Active, Params: []Expr{}}
 
 	for _, p := range s.Params {
 		s1.Params = append(s1.Params, p.Clone().(*Param))

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/nicolasdilley/gomela/promela/promela_ast"
+	"golang.org/x/exp/slices"
 )
 
 // 1. Replace the name of the channel with the name we have in the body of the function
@@ -14,7 +15,7 @@ import (
 // 3. Translate the body of the function to Promela.
 // 4. Translate arguments that are communication parameters
 
-func (m *Model) TranslateCallExpr(call_expr *ast.CallExpr) (stmts *promela_ast.BlockStmt, err *ParseError) {
+func (m *Model) TranslateCallExpr(call_expr *ast.CallExpr) (stmts *promela_ast.BlockStmt, err error) {
 	stmts = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
 
 	// if obj != nil {
@@ -24,7 +25,7 @@ func (m *Model) TranslateCallExpr(call_expr *ast.CallExpr) (stmts *promela_ast.B
 	// first check if the call is not the launch of a goroutine
 
 	if m.IsGoroutine(call_expr) {
-		var err *ParseError
+		var err error
 		var b *promela_ast.BlockStmt
 
 		switch f := call_expr.Args[0].(type) {
@@ -62,7 +63,7 @@ func (m *Model) TranslateCallExpr(call_expr *ast.CallExpr) (stmts *promela_ast.B
 		panic("Promela_translator.go : Should not have a funclit here")
 	}
 
-	decl, new_call_expr, pack_name, err1 := m.findFunDecl(call_expr)
+	decl, new_call_expr, pack_name, err1 := m.FindFunDecl(call_expr)
 
 	if err1 != nil {
 		return stmts, err1
@@ -71,11 +72,11 @@ func (m *Model) TranslateCallExpr(call_expr *ast.CallExpr) (stmts *promela_ast.B
 			if decl.Name.Name == f.Name && m.Package == f.Pkg {
 				// check if positions match
 				if decl.Pos() == f.Decl.Pos() {
-					return stmts, &ParseError{err: errors.New(RECURSIVE_FUNCTION + m.Fileset.Position(decl.Pos()).String())}
+					return stmts, errors.New(RECURSIVE_FUNCTION + m.Props.Fileset.Position(decl.Pos()).String())
 				}
 			}
 		}
-		func_name = decl.Name.Name + fmt.Sprint(m.Fileset.Position(decl.Pos()).Line)
+		func_name = decl.Name.Name + fmt.Sprint(m.Props.Fileset.Position(decl.Pos()).Line)
 		new_mod := m.newModel(pack_name, decl)
 		new_mod.RecFuncs = append(new_mod.RecFuncs, RecFunc{Pkg: m.Package, Name: decl.Name.Name, Decl: decl})
 
@@ -121,7 +122,7 @@ func (m *Model) TranslateCallExpr(call_expr *ast.CallExpr) (stmts *promela_ast.B
 							select_stmt := &promela_ast.SelectStmt{
 								Model:  "Notify",
 								Guards: []promela_ast.GuardStmt{guard, true_guard},
-								Select: m.Fileset.Position(name.Pos())}
+								Select: m.Props.Fileset.Position(name.Pos())}
 
 							stmts.List = append(stmts.List, select_stmt)
 						}
@@ -147,7 +148,7 @@ func (m *Model) TranslateCallExpr(call_expr *ast.CallExpr) (stmts *promela_ast.B
 	return stmts, err
 }
 
-func (m *Model) ParseFuncArgs(call_expr *ast.CallExpr) (*promela_ast.BlockStmt, *ParseError) {
+func (m *Model) ParseFuncArgs(call_expr *ast.CallExpr) (*promela_ast.BlockStmt, error) {
 
 	stmts := &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
 	for _, arg := range call_expr.Args {
@@ -197,17 +198,13 @@ func getPackName(sel ast.Expr) *ast.Ident {
 }
 
 func (m *Model) IsGoroutine(expr *ast.CallExpr) bool {
-
+	var name string
 	switch expr := expr.Fun.(type) {
 	case *ast.Ident:
-		for _, g := range m.Go_names {
-			if expr.Name == g {
-				return true
-			}
-		}
-	default:
-		return false
+		name = expr.Name
+	case *ast.SelectorExpr:
+		name = expr.Sel.Name
 	}
 
-	return false
+	return slices.Contains(m.Go_names, name)
 }
