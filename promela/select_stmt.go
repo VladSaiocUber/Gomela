@@ -116,7 +116,7 @@ func (m *Model) translateSelectStmt(s *ast.SelectStmt) (b *promela_ast.BlockStmt
 			} else { // it is default
 				i.Has_default = true
 				m.checkForBreak(body, goto_stmt)
-				i.Guards = append(i.Guards, &promela_ast.SingleGuardStmt{Cond: &promela_ast.Ident{Name: "true"}, Guard: m.Props.Fileset.Position(comm.Pos()), Body: body})
+				i.Guards = append(i.Guards, &promela_ast.SingleGuardStmt{Cond: &promela_ast.Ident{Name: "default"}, Guard: m.Props.Fileset.Position(comm.Pos()), Body: body})
 			}
 		}
 	}

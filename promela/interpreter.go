@@ -53,6 +53,8 @@ func Print(m *Model) {
 	}
 	proj_name := strings.Replace(splitted[0], AUTHOR_PROJECT_SEP, "/", -1)
 	stmt += "// git_link=https://github.com/" + proj_name + "/blob/" + m.Commit + "/" + file_path + "#L" + strconv.Itoa(m.Props.Fileset.Position(m.Fun.Pos()).Line) + "\n"
+	stmt += `#define default true
+`
 
 	// print the bounds
 	for _, c := range m.Defines {
