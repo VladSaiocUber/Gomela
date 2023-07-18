@@ -52,7 +52,7 @@ func (s *Proctype) Clone() Stmt {
 	s1 := &Proctype{Pos: s.Pos, Name: s.Name.Clone().(*Ident), Body: s.Body.Clone().(*BlockStmt), Active: s.Active, Params: []Expr{}}
 
 	for _, p := range s.Params {
-		s1.Params = append(s1.Params, p.Clone().(*Param))
+		s1.Params = append(s1.Params, p.Clone())
 	}
 	return s1
 }
