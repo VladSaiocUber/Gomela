@@ -21,13 +21,15 @@ ROOTREGEXP=$(echo "$ROOT" | sed "s+\.+\\\.+g")
 
 rm -rf "$RESULTS/$TARGET"
 
+go build github.com/nicolasdilley/gomela
+
 shopt -s globstar
 if [ -d $ROOT/$TARGET ]; then
   HASGO=$(ls $ROOT/$TARGET | grep ".go")
   # echo $HASGO
   if [ ! -z "$HASGO" ]; then
     echo "Now processing: $ROOT/$TARGET"
-    go run github.com/nicolasdilley/gomela -am -result_folder "$RESULTS/$TARGET" model "$ROOT/$TARGET"
+    ./gomela -am -result_folder "$RESULTS/$TARGET" fs "$ROOT/$TARGET"
   fi
 fi
 
@@ -47,5 +49,5 @@ do
     continue
   fi
   echo "Now processing: $ROOT/$TARGET/$l"
-  go run github.com/nicolasdilley/gomela -result_folder "$RESULTS/$TARGET/$l" model "$ROOT/$TARGET/$l"
+  ./gomela -result_folder "$RESULTS/$TARGET/$l" fs "$ROOT/$TARGET/$l"
 done
