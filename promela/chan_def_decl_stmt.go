@@ -30,15 +30,8 @@ func (s *ChanDefDeclStmt) Print(num_tabs int) (stmt string) {
 		async_guard := &promela_ast.SingleGuardStmt{
 			Cond: &promela_ast.BinaryExpr{
 				Pos: s.Name.Ident,
-				Lhs: &promela_ast.SelectorExpr{
-					X: &promela_ast.Ident{
-						Name: s.Name.Name,
-					},
-					Sel: &promela_ast.Ident{
-						Name: "size",
-					},
-				},
-				Op: "<",
+				Lhs: s.Size,
+				Op: ">",
 				Rhs: &promela_ast.Ident{
 					Name: "0",
 				},
