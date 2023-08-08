@@ -1,6 +1,6 @@
 package promela_ast
 
-func Inspect(s Stmt, f func(Stmt) bool) {
+func Inspect(s Node, f func(Node) bool) {
 	switch s := s.(type) {
 	case *BlockStmt:
 		if f(s) {

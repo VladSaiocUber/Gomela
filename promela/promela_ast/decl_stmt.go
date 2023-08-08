@@ -10,10 +10,10 @@ type DeclStmt struct {
 	Decl  token.Position
 	Name  *Ident
 	Types promela_types.Types
-	Rhs   Expr // can be null if not assigned
+	Rhs   Node // can be null if not assigned
 }
 
-func (s *DeclStmt) GoNode() token.Position {
+func (s *DeclStmt) Position() token.Position {
 	return s.Decl
 }
 
@@ -26,7 +26,7 @@ func (s *DeclStmt) Print(num_tabs int) (stmt string) {
 	return
 }
 
-func (s *DeclStmt) Clone() Stmt {
+func (s *DeclStmt) Clone() Node {
 	s1 := &DeclStmt{Decl: s.Decl, Name: s.Name.Clone().(*Ident), Types: s.Types}
 	if s.Rhs != nil {
 		s1.Rhs = s.Rhs.Clone()

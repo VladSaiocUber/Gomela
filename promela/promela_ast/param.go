@@ -12,7 +12,7 @@ type Param struct {
 	Types promela_types.Types
 }
 
-func (p *Param) GoNode() token.Position {
+func (p *Param) Position() token.Position {
 	return p.Pos
 }
 
@@ -21,7 +21,7 @@ func (p *Param) Print(num_tabs int) (stmt string) {
 	return
 }
 
-func (s *Param) Clone() Stmt {
+func (s *Param) Clone() Node {
 	s1 := &Param{Pos: s.Pos, Name: s.Name, Types: s.Types}
 	return s1
 }

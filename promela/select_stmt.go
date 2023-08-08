@@ -10,8 +10,8 @@ import (
 )
 
 func (m *Model) translateSelectStmt(s *ast.SelectStmt) (b *promela_ast.BlockStmt, defers *promela_ast.BlockStmt, err error) {
-	b = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
-	defers = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
+	b = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
+	defers = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
 	i := &promela_ast.SelectStmt{Select: m.Props.Fileset.Position(s.Pos()), Model: "Select"}
 
 	was_in_for := m.For_counter.In_for //used to check if this is the outer loop
@@ -69,6 +69,7 @@ func (m *Model) translateSelectStmt(s *ast.SelectStmt) (b *promela_ast.BlockStmt
 						chan_name := m.getChanStruct(com.Chan)
 
 						gen_send := &GenSendStmt{
+							IsCommCase: true,
 							Send:       m.Props.Fileset.Position(s.Pos()),
 							Chan:       chan_name.Name,
 							M:          m.Props,
@@ -88,14 +89,14 @@ func (m *Model) translateSelectStmt(s *ast.SelectStmt) (b *promela_ast.BlockStmt
 						switch com := rh.(type) {
 						case *ast.UnaryExpr:
 							if com.Op == token.ARROW {
-								guard, err = m.translateRcvStmt(com.X, body, body2)
+								guard, err = m.translateRcvStmt(true, com.X, body, body2)
 								i.Guards = append(i.Guards, guard)
 							}
 						case *ast.Ident:
-							guard, err = m.translateRcvStmt(com, body, body2)
+							guard, err = m.translateRcvStmt(true, com, body, body2)
 							i.Guards = append(i.Guards, guard)
 						case *ast.SelectorExpr:
-							guard, err = m.translateRcvStmt(com, body, body2)
+							guard, err = m.translateRcvStmt(true, com, body, body2)
 							i.Guards = append(i.Guards, guard)
 						}
 					}
@@ -104,7 +105,7 @@ func (m *Model) translateSelectStmt(s *ast.SelectStmt) (b *promela_ast.BlockStmt
 					case *ast.UnaryExpr:
 						if com.Op == token.ARROW {
 							var guard promela_ast.GuardStmt
-							guard, err = m.translateRcvStmt(com.X, body, body2)
+							guard, err = m.translateRcvStmt(true, com.X, body, body2)
 							i.Guards = append(i.Guards, guard)
 						}
 					}

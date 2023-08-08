@@ -338,9 +338,9 @@ func (m *Model) Vid(fun *ast.FuncDecl, expr ast.Expr, mandatory bool, log bool) 
 	}
 	switch expr := expr.(type) {
 	case *ast.Ident:
-		params = m.Upgrade(fun, params, []*CommPar{&CommPar{Name: expr, Mandatory: mandatory, Expr: expr, Alias: false}}, log)
+		params = m.Upgrade(fun, params, []*CommPar{{Name: expr, Mandatory: mandatory, Expr: expr, Alias: false}}, log)
 	case *ast.SelectorExpr:
-		params = m.Upgrade(fun, params, []*CommPar{&CommPar{Name: m.getIdent(expr), Mandatory: mandatory, Expr: expr, Alias: false}}, log)
+		params = m.Upgrade(fun, params, []*CommPar{{Name: m.getIdent(expr), Mandatory: mandatory, Expr: expr, Alias: false}}, log)
 
 		ast.Inspect(expr, func(node ast.Node) bool {
 			switch node := node.(type) {
@@ -442,7 +442,6 @@ func (m *Model) getIdent(expr ast.Expr) *ast.Ident {
 		for _, elt := range expr.Elts {
 			name += m.getIdent(elt).Name
 		}
-		name += ""
 		return &ast.Ident{Name: name, NamePos: expr.Pos()}
 	case *ast.TypeAssertExpr:
 		return &ast.Ident{Name: m.getIdent(expr.X).Name, NamePos: expr.Pos()}

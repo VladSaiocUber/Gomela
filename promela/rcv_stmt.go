@@ -9,6 +9,7 @@ import (
 )
 
 func (m *Model) translateRcvStmt(
+	commCase bool,
 	e ast.Expr,
 	body *promela_ast.BlockStmt,
 	body2 *promela_ast.BlockStmt) (promela_ast.GuardStmt, error) {
@@ -21,7 +22,8 @@ func (m *Model) translateRcvStmt(
 		chan_name := m.getChanStruct(e)
 
 		guard = &GenRcvStmt{
-			Rcv:        m.Props.Fileset.Position(e.Pos()),
+			IsCommCase: commCase,
+			Pos:        m.Props.Fileset.Position(e.Pos()),
 			Chan:       chan_name.Name,
 			M:          m.Props,
 			Sync_body:  body,

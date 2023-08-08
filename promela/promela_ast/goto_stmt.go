@@ -8,7 +8,7 @@ type GotoStmt struct {
 	Label *LabelStmt
 }
 
-func (i *GotoStmt) GoNode() token.Position {
+func (i *GotoStmt) Position() token.Position {
 	return i.Goto
 }
 
@@ -16,7 +16,7 @@ func (i *GotoStmt) Print(num_tabs int) string {
 	return "goto " + i.Label.Name
 }
 
-func (s *GotoStmt) Clone() Stmt {
+func (s *GotoStmt) Clone() Node {
 	s1 := &GotoStmt{Goto: s.Goto, Label: s.Label.Clone().(*LabelStmt)}
 	return s1
 }

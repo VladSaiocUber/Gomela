@@ -14,7 +14,7 @@ type IfStmt struct {
 	Guards []GuardStmt
 }
 
-func (s *IfStmt) GoNode() token.Position {
+func (s *IfStmt) Position() token.Position {
 	return s.If
 }
 
@@ -41,7 +41,7 @@ func (s *IfStmt) Print(num_tabs int) (stmt string) {
 	return
 }
 
-func (s *IfStmt) Clone() Stmt {
+func (s *IfStmt) Clone() Node {
 
 	s1 := &IfStmt{If: s.If, Guards: []GuardStmt{}}
 	if s.Init != nil {

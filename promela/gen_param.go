@@ -15,7 +15,7 @@ type GenChanParam struct {
 	Name  string       // the chan that we want to send on
 }
 
-func (s *GenChanParam) GoNode() token.Position {
+func (s *GenChanParam) Position() token.Position {
 	return s.Pos
 }
 
@@ -40,7 +40,7 @@ func (s *GenChanParam) Print(num_tabs int) string {
 	return p.Print(num_tabs)
 }
 
-func (s *GenChanParam) Clone() promela_ast.Stmt {
+func (s *GenChanParam) Clone() promela_ast.Node {
 	s1 := &GenChanParam{Pos: s.Pos, Name: s.Name, M: s.M, Model: s.Model}
 	return s1
 }

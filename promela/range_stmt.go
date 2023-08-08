@@ -10,8 +10,8 @@ import (
 
 func (m *Model) translateRangeStmt(s *ast.RangeStmt) (b *promela_ast.BlockStmt, defers *promela_ast.BlockStmt, err error) {
 
-	b = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
-	defers = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
+	b = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
+	defers = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
 	d := &promela_ast.DoStmt{Do: m.Props.Fileset.Position(s.Pos())}
 
 	had_go := m.For_counter.With_go
@@ -59,11 +59,11 @@ func (m *Model) translateRangeStmt(s *ast.RangeStmt) (b *promela_ast.BlockStmt, 
 
 		sync_rcv := &promela_ast.RcvStmt{Chan: &promela_ast.SelectorExpr{X: chan_name.Name, Sel: &promela_ast.Ident{Name: "sync"}}, Rhs: &promela_ast.Ident{Name: "state"}}
 
-		async_guard := &promela_ast.SingleGuardStmt{Cond: async_rcv, Guard: m.Props.Fileset.Position(s.Pos()), Body: &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}}
+		async_guard := &promela_ast.SingleGuardStmt{Cond: async_rcv, Guard: m.Props.Fileset.Position(s.Pos()), Body: &promela_ast.BlockStmt{List: []promela_ast.Node{}}}
 
 		sync_guard := &promela_ast.SingleGuardStmt{
 			Cond: sync_rcv,
-			Body: &promela_ast.BlockStmt{List: []promela_ast.Stmt{
+			Body: &promela_ast.BlockStmt{List: []promela_ast.Node{
 				&promela_ast.SendStmt{
 					Chan: &promela_ast.SelectorExpr{
 						X:   chan_name.Name,
@@ -76,13 +76,13 @@ func (m *Model) translateRangeStmt(s *ast.RangeStmt) (b *promela_ast.BlockStmt, 
 			If:     m.Props.Fileset.Position(s.Pos()),
 			Model:  "Range",
 			Guards: []promela_ast.GuardStmt{async_guard, sync_guard},
-			Init:   &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}}
+			Init:   &promela_ast.BlockStmt{List: []promela_ast.Node{}}}
 
-		if_closed_guard := &promela_ast.SingleGuardStmt{Cond: &promela_ast.Ident{Name: "state && num_msgs <= 0"}, Body: &promela_ast.BlockStmt{List: []promela_ast.Stmt{&promela_ast.Ident{Name: "break"}}}}
+		if_closed_guard := &promela_ast.SingleGuardStmt{Cond: &promela_ast.Ident{Name: "state && num_msgs <= 0"}, Body: &promela_ast.BlockStmt{List: []promela_ast.Node{&promela_ast.Ident{Name: "break"}}}}
 		if_not_closed_guard := &promela_ast.SingleGuardStmt{Cond: &promela_ast.Ident{Name: "else"}, Body: s1}
 		i := &promela_ast.IfStmt{
 			Guards: []promela_ast.GuardStmt{if_closed_guard, if_not_closed_guard},
-			Init:   &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}}
+			Init:   &promela_ast.BlockStmt{List: []promela_ast.Node{}}}
 
 		if len(d1.List) > 0 {
 			return b, d1, errors.New(DEFER_IN_RANGE + m.Props.Fileset.Position(s.Pos()).String())
@@ -91,7 +91,7 @@ func (m *Model) translateRangeStmt(s *ast.RangeStmt) (b *promela_ast.BlockStmt, 
 			err = err1
 		}
 		num_msgs_0 := &promela_ast.AssignStmt{Lhs: &promela_ast.Ident{Name: "num_msgs"}, Rhs: &promela_ast.Ident{Name: "0"}}
-		do_guard.Body = &promela_ast.BlockStmt{List: []promela_ast.Stmt{num_msgs_0, rcv, i}}
+		do_guard.Body = &promela_ast.BlockStmt{List: []promela_ast.Node{num_msgs_0, rcv, i}}
 		d.Guards = append(d.Guards, do_guard)
 		b.List = append(b.List, d, for_label)
 
@@ -122,24 +122,24 @@ func (m *Model) translateRangeStmt(s *ast.RangeStmt) (b *promela_ast.BlockStmt, 
 			ub.Name += "-1"
 			// generate the optionnal loop
 			// print the for loop  with the if
-			if_stmt := &promela_ast.IfStmt{If: m.Props.Fileset.Position(s.Pos()), Init: &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}}
+			if_stmt := &promela_ast.IfStmt{If: m.Props.Fileset.Position(s.Pos()), Init: &promela_ast.BlockStmt{List: []promela_ast.Node{}}}
 
 			ub_not_given := promela_ast.BinaryExpr{Lhs: ub, Rhs: &promela_ast.Ident{Name: "-3"}, Op: "!="}
 
 			then := &promela_ast.SingleGuardStmt{
 				Cond: &ub_not_given,
-				Body: &promela_ast.BlockStmt{List: []promela_ast.Stmt{&promela_ast.ForStmt{For: m.Props.Fileset.Position(s.Pos()), Lb: &promela_ast.Ident{Name: "0"}, Ub: ub, Body: block_stmt}, for_label}},
+				Body: &promela_ast.BlockStmt{List: []promela_ast.Node{&promela_ast.ForStmt{For: m.Props.Fileset.Position(s.Pos()), Lb: &promela_ast.Ident{Name: "0"}, Ub: ub, Body: block_stmt}, for_label}},
 			}
 
 			// else part
 
-			break_branch := &promela_ast.SingleGuardStmt{Cond: &promela_ast.Ident{Name: "true"}, Body: &promela_ast.BlockStmt{List: []promela_ast.Stmt{&promela_ast.Ident{Name: "break"}}}}
+			break_branch := &promela_ast.SingleGuardStmt{Cond: &promela_ast.Ident{Name: "true"}, Body: &promela_ast.BlockStmt{List: []promela_ast.Node{&promela_ast.Ident{Name: "break"}}}}
 			d.Guards = append(d.Guards,
 				&promela_ast.SingleGuardStmt{Cond: &promela_ast.Ident{Name: "true"}, Body: body2},
 				break_branch,
 			)
 
-			els := &promela_ast.SingleGuardStmt{Cond: &promela_ast.Ident{Name: "else"}, Body: &promela_ast.BlockStmt{List: []promela_ast.Stmt{d, for_label2}}}
+			els := &promela_ast.SingleGuardStmt{Cond: &promela_ast.Ident{Name: "else"}, Body: &promela_ast.BlockStmt{List: []promela_ast.Node{d, for_label2}}}
 
 			if_stmt.Guards = []promela_ast.GuardStmt{then, els}
 			b.List = append(b.List, if_stmt)

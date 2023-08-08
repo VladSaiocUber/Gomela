@@ -89,7 +89,7 @@ func used(commPar *CommPar, b *promela_ast.BlockStmt) bool {
 		return true
 	}
 
-	isUsed := func(s promela_ast.Stmt) bool {
+	isUsed := func(s promela_ast.Node) bool {
 		switch s := s.(type) {
 		case *promela_ast.ForStmt:
 			if s.Ub.Name == commPar.Name.Name+"-1" {
@@ -171,7 +171,7 @@ func removeDecl(commPar *CommPar, b *promela_ast.BlockStmt) {
 // see if the blockstmt contains a receive, a send or a run stmt
 func containsMSP(b *promela_ast.BlockStmt) bool {
 	contains := false
-	promela_ast.Inspect(b, func(s promela_ast.Stmt) bool {
+	promela_ast.Inspect(b, func(s promela_ast.Node) bool {
 		switch s.(type) {
 		case *GenReceiver, *GenRcvStmt, *GenSendStmt, *promela_ast.RcvStmt, *promela_ast.SendStmt, *promela_ast.RunStmt:
 			contains = true

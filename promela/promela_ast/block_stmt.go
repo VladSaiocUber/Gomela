@@ -10,10 +10,10 @@ import (
 // If non of the guards are executable, the doStmt blocks until one is ready. (Like a for{select}) in go
 type BlockStmt struct {
 	Block token.Position
-	List  []Stmt
+	List  []Node
 }
 
-func (b *BlockStmt) GoNode() token.Position {
+func (b *BlockStmt) Position() token.Position {
 	return b.Block
 }
 
@@ -35,9 +35,9 @@ func (b *BlockStmt) Print(num_tabs int) (stmt string) {
 	return stmt
 }
 
-func (s *BlockStmt) Clone() Stmt {
+func (s *BlockStmt) Clone() Node {
 
-	s1 := &BlockStmt{Block: s.Block, List: []Stmt{}}
+	s1 := &BlockStmt{Block: s.Block, List: []Node{}}
 
 	for _, stmt := range s.List {
 		s1.List = append(s1.List, stmt.Clone())

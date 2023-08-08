@@ -16,7 +16,7 @@ type ForStmt struct {
 	Body *BlockStmt
 }
 
-func (s *ForStmt) GoNode() token.Position {
+func (s *ForStmt) Position() token.Position {
 	return s.For
 }
 
@@ -26,7 +26,7 @@ func (s *ForStmt) Print(num_tabs int) (stmt string) {
 	stmt += utils.GetTabs(num_tabs) + "}"
 	return
 }
-func (s *ForStmt) Clone() Stmt {
+func (s *ForStmt) Clone() Node {
 	s1 := &ForStmt{For: s.For, Lb: s.Lb.Clone().(*Ident), Ub: s.Ub.Clone().(*Ident), Body: s.Body.Clone().(*BlockStmt)}
 	return s1
 }

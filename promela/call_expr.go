@@ -16,7 +16,7 @@ import (
 // 4. Translate arguments that are communication parameters
 
 func (m *Model) TranslateCallExpr(call_expr *ast.CallExpr) (stmts *promela_ast.BlockStmt, err error) {
-	stmts = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
+	stmts = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
 
 	// if obj != nil {
 	var func_name string // The corresponding promela function name consisting of package + fun + num of param
@@ -54,7 +54,7 @@ func (m *Model) TranslateCallExpr(call_expr *ast.CallExpr) (stmts *promela_ast.B
 		pack_name = getPackName(name).Name
 
 		if m.isWaitgroup(&ast.Ident{Name: translateIdent(name.X).Name}) {
-			return m.parseWgFunc(call_expr, name)
+			return m.parseWgMethod(call_expr, name)
 		}
 
 		// Add here ifNotify() -> parseNotifyFunc()
@@ -108,16 +108,16 @@ func (m *Model) TranslateCallExpr(call_expr *ast.CallExpr) (stmts *promela_ast.B
 
 							guard, err = m.generateGenSendStmt(new_call_expr.Args[0],
 								&promela_ast.BlockStmt{
-									List: []promela_ast.Stmt{
+									List: []promela_ast.Node{
 										&promela_ast.Ident{Name: "break"},
 									}},
 								&promela_ast.BlockStmt{
-									List: []promela_ast.Stmt{
+									List: []promela_ast.Node{
 										&promela_ast.Ident{Name: "break"},
 									}})
 
 							// true guard
-							true_guard := &promela_ast.SingleGuardStmt{Cond: &promela_ast.Ident{Name: "true"}, Body: &promela_ast.BlockStmt{List: []promela_ast.Stmt{&promela_ast.Ident{Name: "break"}}}}
+							true_guard := &promela_ast.SingleGuardStmt{Cond: &promela_ast.Ident{Name: "true"}, Body: &promela_ast.BlockStmt{List: []promela_ast.Node{&promela_ast.Ident{Name: "break"}}}}
 
 							select_stmt := &promela_ast.SelectStmt{
 								Model:  "Notify",
@@ -150,7 +150,7 @@ func (m *Model) TranslateCallExpr(call_expr *ast.CallExpr) (stmts *promela_ast.B
 
 func (m *Model) ParseFuncArgs(call_expr *ast.CallExpr) (*promela_ast.BlockStmt, error) {
 
-	stmts := &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
+	stmts := &promela_ast.BlockStmt{List: []promela_ast.Node{}}
 	for _, arg := range call_expr.Args {
 
 		expr, e := m.TranslateExpr(arg)

@@ -23,7 +23,7 @@ func (m *Model) TranslateGoStmt(s *ast.GoStmt, isMain bool) (b *promela_ast.Bloc
 		}
 	}()
 
-	b = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
+	b = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
 
 	var func_name string // The corresponding promela function name consisting of package + fun + num of param + len(proctypes)
 	var pack_name string
@@ -107,9 +107,9 @@ func (m *Model) TranslateGoStmt(s *ast.GoStmt, isMain bool) (b *promela_ast.Bloc
 }
 
 // s can be either the go stmt or the call expr
-func (m *Model) translateCommParams(new_mod *Model, isGo bool, call_expr *ast.CallExpr, func_name string, decl *ast.FuncDecl, params []promela_ast.Expr, args []promela_ast.Expr, isMain bool) (*promela_ast.BlockStmt, error) {
+func (m *Model) translateCommParams(new_mod *Model, isGo bool, call_expr *ast.CallExpr, func_name string, decl *ast.FuncDecl, params []promela_ast.Node, args []promela_ast.Node, isMain bool) (*promela_ast.BlockStmt, error) {
 
-	b := &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
+	b := &promela_ast.BlockStmt{List: []promela_ast.Node{}}
 	prom_call := &promela_ast.CallExpr{Fun: &promela_ast.Ident{Name: func_name}, Call: m.Props.Fileset.Position(call_expr.Pos())}
 
 	prom_call.Args = args
@@ -117,7 +117,7 @@ func (m *Model) translateCommParams(new_mod *Model, isGo bool, call_expr *ast.Ca
 		Name:   &promela_ast.Ident{Name: func_name},
 		Pos:    m.Props.Fileset.Position(call_expr.Pos()),
 		Active: false,
-		Body:   &promela_ast.BlockStmt{List: []promela_ast.Stmt{}},
+		Body:   &promela_ast.BlockStmt{List: []promela_ast.Node{}},
 		Params: params,
 		Decl:   decl,
 	}
@@ -164,9 +164,9 @@ func (m *Model) translateCommParams(new_mod *Model, isGo bool, call_expr *ast.Ca
 				if commPar.Mandatory {
 					def := m.GenerateDefine(commPar) // generate the define statement out of the commpar
 
-					proc.Body.List = append([]promela_ast.Stmt{&promela_ast.CommParamDeclStmt{Name: &promela_ast.Ident{Name: var_name}, Mandatory: true, Rhs: &promela_ast.Ident{Name: def}, Types: promela_types.Int}}, proc.Body.List...)
+					proc.Body.List = append([]promela_ast.Node{&promela_ast.CommParamDeclStmt{Name: &promela_ast.Ident{Name: var_name}, Mandatory: true, Rhs: &promela_ast.Ident{Name: def}, Types: promela_types.Int}}, proc.Body.List...)
 				} else {
-					proc.Body.List = append([]promela_ast.Stmt{&promela_ast.CommParamDeclStmt{Name: &promela_ast.Ident{Name: var_name}, Mandatory: false, Rhs: &promela_ast.Ident{Name: OPTIONAL_BOUND}, Types: promela_types.Int}}, proc.Body.List...)
+					proc.Body.List = append([]promela_ast.Node{&promela_ast.CommParamDeclStmt{Name: &promela_ast.Ident{Name: var_name}, Mandatory: false, Rhs: &promela_ast.Ident{Name: OPTIONAL_BOUND}, Types: promela_types.Int}}, proc.Body.List...)
 				}
 			} else {
 				proc.Params = append(proc.Params, &promela_ast.Param{Name: VAR_PREFIX + commPar.Name.Name, Types: promela_types.Int})
@@ -309,11 +309,11 @@ func (m *Model) translateCommParams(new_mod *Model, isGo bool, call_expr *ast.Ca
 	return b, nil
 }
 
-func (m *Model) translateParams(new_mod *Model, decl *ast.FuncDecl, call_expr *ast.CallExpr, isMain bool) ([]promela_ast.Expr, []promela_ast.Expr, bool, bool, error) {
+func (m *Model) translateParams(new_mod *Model, decl *ast.FuncDecl, call_expr *ast.CallExpr, isMain bool) ([]promela_ast.Node, []promela_ast.Node, bool, bool, error) {
 	hasChan := isMain
 	known := true
-	params := []promela_ast.Expr{}
-	args := []promela_ast.Expr{}
+	params := []promela_ast.Node{}
+	args := []promela_ast.Node{}
 
 	counter := 0
 
@@ -396,7 +396,7 @@ func (m *Model) translateParams(new_mod *Model, decl *ast.FuncDecl, call_expr *a
 	return params, args, hasChan, known, nil
 }
 
-// func (m *Model) GenerateParamAndArg(arg ast.Expr, t promela_types.Types) ([]*promela_ast.Param, []promela_ast.Expr) {
+// func (m *Model) GenerateParamAndArg(arg ast.Expr, t promela_types.Types) ([]*promela_ast.Param, []promela_ast.Node) {
 // 	name := translateIdent(arg).Name
 // 	p := &promela_ast.Param{Name: name, Pos: m.Props.Fileset.Position(arg.Pos()), Types: t}
 // 	e := &promela_ast.Ident{Name: name}

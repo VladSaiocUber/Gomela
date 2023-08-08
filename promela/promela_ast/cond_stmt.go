@@ -13,7 +13,7 @@ type CondStmt struct {
 	Guards []GuardStmt
 }
 
-func (c *CondStmt) GoNode() token.Position {
+func (c *CondStmt) Position() token.Position {
 	return c.Cond
 }
 
@@ -26,7 +26,7 @@ func (c *CondStmt) Print(num_tabs int) (stmt string) {
 
 	return
 }
-func (s *CondStmt) Clone() Stmt {
+func (s *CondStmt) Clone() Node {
 	s1 := &CondStmt{Cond: s.Cond, Guards: []GuardStmt{}}
 
 	for _, g := range s.Guards {

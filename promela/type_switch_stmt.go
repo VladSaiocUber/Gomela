@@ -9,9 +9,9 @@ import (
 )
 
 func (m *Model) translateTypeSwitchStmt(s *ast.TypeSwitchStmt) (b *promela_ast.BlockStmt, defers *promela_ast.BlockStmt, err error) {
-	b = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
-	defers = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
-	i := &promela_ast.IfStmt{If: m.Props.Fileset.Position(s.Pos()), Init: &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}}
+	b = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
+	defers = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
+	i := &promela_ast.IfStmt{If: m.Props.Fileset.Position(s.Pos()), Init: &promela_ast.BlockStmt{List: []promela_ast.Node{}}}
 
 	for _, stmt := range s.Body.List {
 		switch c := stmt.(type) {

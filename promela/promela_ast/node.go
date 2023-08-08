@@ -2,10 +2,12 @@ package promela_ast
 
 import "go/token"
 
-// node represent all the node in the ast tree
-// a node as a line number, a filename
+// Node is implemented by all Promela AST nodes.
 type Node interface {
-	GoNode() token.Position // The go node to which this promela node refers to
+	// Retrieves the position in the original Go program
+	Position() token.Position
+	// Unparses the AST and pretty prints it at the depth level given by tabs.
 	Print(tabs int) string
-	Clone() Stmt
+	// Produces a deep copy of the node.
+	Clone() Node
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/nicolasdilley/gomela/promela/promela_ast"
 )
 
+// translateAssignStmt translates a Go assignment statement to Promela.
 func (m *Model) translateAssignStmt(s *ast.AssignStmt) (b *promela_ast.BlockStmt, err error) {
 
 	b, err = m.translateNewVar(s, s.Lhs, s.Rhs)
@@ -25,17 +26,9 @@ func (m *Model) translateAssignStmt(s *ast.AssignStmt) (b *promela_ast.BlockStmt
 			case token.ARROW:
 				var guard promela_ast.GuardStmt
 
-				guard, err = m.translateRcvStmt(spec.X, &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}, &promela_ast.BlockStmt{List: []promela_ast.Stmt{}})
-				if_stmt := &promela_ast.IfStmt{
-					Init: &promela_ast.BlockStmt{
-						List: []promela_ast.Stmt{},
-					},
-					Guards: []promela_ast.GuardStmt{},
-				}
+				guard, err = m.translateRcvStmt(false, spec.X, &promela_ast.BlockStmt{List: []promela_ast.Node{}}, &promela_ast.BlockStmt{List: []promela_ast.Node{}})
 
-				if_stmt.Guards = append(if_stmt.Guards, guard)
-
-				b.List = append(b.List, if_stmt)
+				b.List = append(b.List, guard)
 				ch := m.getChanStruct(spec.X)
 				if len(s.Lhs) == 2 {
 					switch v := s.Lhs[1].(type) {
@@ -78,7 +71,7 @@ func (m *Model) translateAssignStmt(s *ast.AssignStmt) (b *promela_ast.BlockStmt
 
 					lhs, _ := m.TranslateKnownExpr(s.Lhs[i])
 					rhs, comm_pars := m.TranslateKnownExpr(spec)
-					addBlock(b, &promela_ast.BlockStmt{List: []promela_ast.Stmt{
+					addBlock(b, &promela_ast.BlockStmt{List: []promela_ast.Node{
 						&promela_ast.AssignStmt{Lhs: lhs, Rhs: rhs}}})
 
 					m.FlagCommParamAsAlias(s.Lhs[i], comm_pars)

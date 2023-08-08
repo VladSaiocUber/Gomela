@@ -8,15 +8,16 @@ import (
 
 // a Promela send statement is a *guard* statement which either sends its respective monitor or promela channel based on containsClose
 type GenSendStmt struct {
+	IsCommCase bool
 	Send       token.Position
 	Model      string
 	M          *GlobalProps     // a pointer to the model to check whether it containsClose or not
-	Chan       promela_ast.Expr // the chan that we want to send on
+	Chan       promela_ast.Node // the chan that we want to send on
 	Sync_body  *promela_ast.BlockStmt
 	Async_body *promela_ast.BlockStmt
 }
 
-func (s *GenSendStmt) GoNode() token.Position {
+func (s *GenSendStmt) Position() token.Position {
 	return s.Send
 }
 
@@ -48,36 +49,61 @@ func (s *GenSendStmt) Print(num_tabs int) string {
 
 		sync_guard := &promela_ast.SingleGuardStmt{
 			Cond:  sync_send,
-			Body:  &promela_ast.BlockStmt{List: []promela_ast.Stmt{}},
+			Body:  &promela_ast.BlockStmt{List: []promela_ast.Node{}},
 			Guard: s.Send}
 
-		sync_guard.Body.List = append([]promela_ast.Stmt{&promela_ast.RcvStmt{
+		sync_guard.Body.List = append([]promela_ast.Node{&promela_ast.RcvStmt{
 			Chan: sending_chan,
 			Rhs:  &promela_ast.Ident{Name: "ok"}},
 			assert}, s.Sync_body.List...)
 
 		async_guard := &promela_ast.SingleGuardStmt{
 			Cond: async_send,
-			Body: &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}, Guard: s.Send}
+			Body: &promela_ast.BlockStmt{List: []promela_ast.Node{}}, Guard: s.Send}
 
-		async_guard.Body.List = append([]promela_ast.Stmt{assert}, s.Async_body.List...)
+		async_guard.Body.List = append([]promela_ast.Node{assert}, s.Async_body.List...)
 
-		return async_guard.Print(num_tabs) + "\n" + sync_guard.Print(num_tabs)
+		if s.IsCommCase {
+			return async_guard.Print(num_tabs) + "\n" + sync_guard.Print(num_tabs)
+		}
+		if_stmt := &promela_ast.IfStmt{
+			Model: "Send",
+			Init: &promela_ast.BlockStmt{
+				List: []promela_ast.Node{},
+			},
+			Guards: []promela_ast.GuardStmt{
+				async_guard,
+				sync_guard,
+			},
+		}
+		return if_stmt.Print(num_tabs)
 	} else {
-
-		send_guard := &promela_ast.SingleGuardStmt{
-			Cond: &promela_ast.SendStmt{
+		body := append([]promela_ast.Node{
+			&promela_ast.SendStmt{
 				Chan:  s.Chan,
 				Model: s.Model,
-				Rhs:   &promela_ast.Ident{Name: "0"}},
-			Body: s.Sync_body}
+				Rhs:   &promela_ast.Ident{Name: "0"},
+			},
+		}, s.Sync_body.List...)
+
+		send_guard := &promela_ast.BlockStmt{
+			List: body,
+		}
 
 		return send_guard.Print(num_tabs)
 	}
 }
 
-func (s *GenSendStmt) Clone() promela_ast.Stmt {
-	s1 := &GenSendStmt{Send: s.Send, Chan: s.Chan.Clone(), M: s.M, Model: s.Model}
+func (s *GenSendStmt) Clone() promela_ast.Node {
+	s1 := &GenSendStmt{
+		IsCommCase: s.IsCommCase,
+		Send:       s.Send,
+		Chan:       s.Chan.Clone(),
+		M:          s.M,
+		Model:      s.Model,
+		Sync_body:  s.Sync_body.Clone().(*promela_ast.BlockStmt),
+		Async_body: s.Async_body.Clone().(*promela_ast.BlockStmt),
+	}
 	return s1
 }
 

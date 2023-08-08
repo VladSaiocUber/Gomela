@@ -17,7 +17,7 @@ func (m *Model) translateDeferStmt(s *ast.DeferStmt) (*promela_ast.BlockStmt, er
 		m.Current_return_label = "defer" + strconv.Itoa(m.defer_counter)
 		return s1, err
 	} else {
-		return &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}, nil
+		return &promela_ast.BlockStmt{List: []promela_ast.Node{}}, nil
 	}
 
 }

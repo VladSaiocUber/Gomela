@@ -8,11 +8,11 @@ import (
 type SendStmt struct {
 	Send  token.Position
 	Model string
-	Chan  Expr // the chan that we want to send on
-	Rhs   Expr // the value we want to send
+	Chan  Node // the chan that we want to send on
+	Rhs   Node // the value we want to send
 }
 
-func (s *SendStmt) GoNode() token.Position {
+func (s *SendStmt) Position() token.Position {
 	return s.Send
 }
 
@@ -26,7 +26,7 @@ func (s *SendStmt) Print(num_tabs int) string {
 	return s.Chan.Print(num_tabs) + "!" + s.Rhs.Print(num_tabs) + comment
 }
 
-func (s *SendStmt) Clone() Stmt {
+func (s *SendStmt) Clone() Node {
 	s1 := &SendStmt{Send: s.Send, Chan: s.Chan.Clone(), Rhs: s.Rhs.Clone()}
 	return s1
 }

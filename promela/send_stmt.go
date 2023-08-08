@@ -9,24 +9,15 @@ import (
 )
 
 func (m *Model) translateSendStmt(s *ast.SendStmt) (b *promela_ast.BlockStmt, err error) {
-	b = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
+	b = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
 
 	var guard promela_ast.GuardStmt
 
 	guard, err = m.generateGenSendStmt(s.Chan, &promela_ast.BlockStmt{
-		List: []promela_ast.Stmt{},
+		List: []promela_ast.Node{},
 	}, &promela_ast.BlockStmt{
-		List: []promela_ast.Stmt{},
+		List: []promela_ast.Node{},
 	})
-
-	if_stmt := &promela_ast.IfStmt{
-		If:    m.Props.Fileset.Position(s.Pos()),
-		Model: "Send",
-		Init: &promela_ast.BlockStmt{
-			List: []promela_ast.Stmt{},
-		},
-		Guards: []promela_ast.GuardStmt{guard},
-	}
 
 	expr, err1 := m.TranslateExpr(s.Value)
 	if err1 != nil {
@@ -34,7 +25,7 @@ func (m *Model) translateSendStmt(s *ast.SendStmt) (b *promela_ast.BlockStmt, er
 	}
 	addBlock(b, expr)
 
-	b.List = append(b.List, if_stmt)
+	b.List = append(b.List, guard)
 
 	return b, err
 
@@ -48,6 +39,7 @@ func (m *Model) generateGenSendStmt(e ast.Expr, body *promela_ast.BlockStmt, bod
 		chan_name := m.getChanStruct(e)
 
 		g = &GenSendStmt{
+			IsCommCase: false,
 			Send:       m.Props.Fileset.Position(e.Pos()),
 			Chan:       chan_name.Name,
 			M:          m.Props,

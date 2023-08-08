@@ -9,7 +9,7 @@ type InitDef struct {
 	Body *BlockStmt
 }
 
-func (c *InitDef) GoNode() token.Position {
+func (c *InitDef) Position() token.Position {
 	return c.Def
 }
 
@@ -26,7 +26,7 @@ func (d *InitDef) DeclAtStart() {
 	d.Body.List = append(DeclInBlock(d.Body), d.Body.List...)
 }
 
-func (s *InitDef) Clone() Stmt {
+func (s *InitDef) Clone() Node {
 	s1 := &InitDef{Def: s.Def, Body: s.Body.Clone().(*BlockStmt)}
 	return s1
 }

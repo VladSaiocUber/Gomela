@@ -8,7 +8,7 @@ import (
 )
 
 func (m *Model) TranslateMutexOp(call_expr *ast.CallExpr) (b *promela_ast.BlockStmt, err error) {
-	b = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
+	b = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
 	switch name := call_expr.Fun.(type) {
 	case *ast.SelectorExpr:
 		chan_to_use := "Lock"

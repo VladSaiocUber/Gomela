@@ -1,6 +1,7 @@
 package promela
 
 import (
+	"fmt"
 	"go/ast"
 
 	"github.com/nicolasdilley/gomela/promela/promela_ast"
@@ -12,6 +13,9 @@ func (m *Model) IsExprKnown(expr ast.Expr) bool {
 
 	ast.Inspect(expr, func(node ast.Node) bool {
 		switch e := node.(type) {
+		case *ast.CompositeLit:
+			_, isKnown = e.Type.(*ast.ArrayType)
+			return false
 		case *ast.BasicLit:
 			isKnown = true
 		case *ast.Ident:
@@ -47,11 +51,13 @@ func (m *Model) IsExprKnown(expr ast.Expr) bool {
 
 // Translate an expr where all variable (including literal) are either statically known or comm params
 // Also returns a list of all comm par translated
-func (m *Model) TranslateKnownExpr(expr ast.Expr) (promela_ast.Expr, []*CommPar) {
-	var prom_expr promela_ast.Expr
+func (m *Model) TranslateKnownExpr(expr ast.Expr) (promela_ast.Node, []*CommPar) {
+	var prom_expr promela_ast.Node
 	commPars := []*CommPar{}
 
 	switch expr := expr.(type) {
+	case *ast.CompositeLit:
+		prom_expr = &promela_ast.Ident{Name: fmt.Sprintf("%d", len(expr.Elts))}
 	case *ast.BasicLit:
 		prom_expr = &promela_ast.Ident{Name: expr.Value}
 	case *ast.Ident, *ast.SelectorExpr:

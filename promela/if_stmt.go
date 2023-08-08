@@ -10,9 +10,9 @@ import (
 )
 
 func (m *Model) translateIfStmt(s *ast.IfStmt) (b *promela_ast.BlockStmt, defers *promela_ast.BlockStmt, err error) {
-	b = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
-	defers = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
-	i := &promela_ast.IfStmt{If: m.Props.Fileset.Position(s.Pos()), Init: &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}}
+	b = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
+	defers = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
+	i := &promela_ast.IfStmt{If: m.Props.Fileset.Position(s.Pos()), Init: &promela_ast.BlockStmt{List: []promela_ast.Node{}}}
 
 	stmts, defer_stmts, err1 := m.TranslateBlockStmt(&ast.BlockStmt{List: []ast.Stmt{s.Init}})
 
@@ -36,7 +36,7 @@ func (m *Model) translateIfStmt(s *ast.IfStmt) (b *promela_ast.BlockStmt, defers
 
 		// if contains_comm_param add the cond to the modelled if statement
 
-		var g promela_ast.Expr = &promela_ast.Ident{Name: "true"}
+		var g promela_ast.Node = &promela_ast.Ident{Name: "true"}
 		if contains_comm_param {
 			g = cond
 		}
@@ -61,7 +61,7 @@ func (m *Model) translateIfStmt(s *ast.IfStmt) (b *promela_ast.BlockStmt, defers
 		}
 
 		if s.Else != nil {
-			stmts := &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
+			stmts := &promela_ast.BlockStmt{List: []promela_ast.Node{}}
 			switch els := s.Else.(type) {
 			case *ast.BlockStmt:
 				s1, defer_stmts3, err1 := m.TranslateBlockStmt(els)
@@ -106,8 +106,8 @@ func (m *Model) translateIfStmt(s *ast.IfStmt) (b *promela_ast.BlockStmt, defers
 
 func (m *Model) isIfClosed(s *ast.IfStmt) (isClosed bool, b *promela_ast.BlockStmt, e error) {
 	isClosed = false
-	b = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
-	var cond promela_ast.Expr
+	b = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
+	var cond promela_ast.Node
 	var found bool = false
 
 	switch expr := s.Cond.(type) {
@@ -136,10 +136,10 @@ func (m *Model) isIfClosed(s *ast.IfStmt) (isClosed bool, b *promela_ast.BlockSt
 			return isClosed, b1, errors.New(DEFER_IN_IF + m.Props.Fileset.Position(s.Pos()).String())
 		}
 		then_guard := &promela_ast.SingleGuardStmt{Cond: cond, Body: b1}
-		else_guard := &promela_ast.SingleGuardStmt{Cond: &promela_ast.Ident{Name: "else"}, Body: &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}}
+		else_guard := &promela_ast.SingleGuardStmt{Cond: &promela_ast.Ident{Name: "else"}, Body: &promela_ast.BlockStmt{List: []promela_ast.Node{}}}
 
 		if s.Else != nil {
-			stmts := &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
+			stmts := &promela_ast.BlockStmt{List: []promela_ast.Node{}}
 			switch els := s.Else.(type) {
 			case *ast.BlockStmt:
 				s1, defer_stmts3, err1 := m.TranslateBlockStmt(els)
@@ -173,7 +173,7 @@ func (m *Model) isIfClosed(s *ast.IfStmt) (isClosed bool, b *promela_ast.BlockSt
 
 // then traverse again and translate
 
-func (m *Model) translateIfCond(expr ast.Expr) (promela_ast.Expr, bool) {
+func (m *Model) translateIfCond(expr ast.Expr) (promela_ast.Node, bool) {
 	prom_expr := &promela_ast.BinaryExpr{}
 
 	// ast.Inspect() etc

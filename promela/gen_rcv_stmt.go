@@ -8,16 +8,17 @@ import (
 
 // a Promela send statement is a *guard* statement which either sends its respective monitor or promela channel based on containsClose
 type GenRcvStmt struct {
-	Rcv        token.Position
+	IsCommCase bool
+	Pos        token.Position
 	Model      string
 	M          *GlobalProps     // a pointer to the model to check whether it containsClose or not
-	Chan       promela_ast.Expr // the chan that we want to send on
+	Chan       promela_ast.Node // the chan that we want to send on
 	Sync_body  *promela_ast.BlockStmt
 	Async_body *promela_ast.BlockStmt
 }
 
-func (s *GenRcvStmt) GoNode() token.Position {
-	return s.Rcv
+func (s *GenRcvStmt) Position() token.Position {
+	return s.Pos
 }
 
 func (s *GenRcvStmt) Print(num_tabs int) string {
@@ -40,10 +41,10 @@ func (s *GenRcvStmt) Print(num_tabs int) string {
 
 		async_guard := &promela_ast.SingleGuardStmt{
 			Cond:  async_rcv,
-			Guard: s.Rcv,
+			Guard: s.Pos,
 			Body:  s.Async_body}
 
-		sync_guard_body := &promela_ast.BlockStmt{List: []promela_ast.Stmt{
+		sync_guard_body := &promela_ast.BlockStmt{List: []promela_ast.Node{
 			&promela_ast.SendStmt{
 				Chan: &promela_ast.SelectorExpr{
 					X:   s.Chan,
@@ -58,25 +59,48 @@ func (s *GenRcvStmt) Print(num_tabs int) string {
 			Cond: sync_rcv,
 			Body: sync_guard_body,
 		}
-
-		return async_guard.Print(num_tabs) + "\n" + sync_guard.Print(num_tabs)
+		if s.IsCommCase {
+			return async_guard.Print(num_tabs) + "\n" + sync_guard.Print(num_tabs)
+		}
+		if_stmt := &promela_ast.IfStmt{
+			Model: "Recv",
+			Init: &promela_ast.BlockStmt{
+				List: []promela_ast.Node{},
+			},
+			Guards: []promela_ast.GuardStmt{
+				async_guard,
+				sync_guard,
+			},
+		}
+		return if_stmt.Print(num_tabs)
 
 	} else {
-
-		send_guard := &promela_ast.SingleGuardStmt{
-			Cond: &promela_ast.SendStmt{
+		body := append([]promela_ast.Node{
+			&promela_ast.RcvStmt{
 				Chan:  s.Chan,
-				Model: "Send",
-				Rhs:   &promela_ast.Ident{Name: "0"}},
-			Body: s.Sync_body}
+				Model: "Recv",
+				Rhs:   &promela_ast.Ident{Name: "0"},
+			},
+		}, s.Sync_body.List...)
 
-		return send_guard.Print(num_tabs)
+		rcv_guard := &promela_ast.BlockStmt{
+			List: body,
+		}
+		return rcv_guard.Print(num_tabs)
 	}
 
 }
 
-func (s *GenRcvStmt) Clone() promela_ast.Stmt {
-	s1 := &GenRcvStmt{Rcv: s.Rcv, Chan: s.Chan.Clone(), M: s.M, Model: s.Model}
+func (s *GenRcvStmt) Clone() promela_ast.Node {
+	s1 := &GenRcvStmt{
+		IsCommCase: s.IsCommCase,
+		Pos:        s.Pos,
+		Chan:       s.Chan.Clone(),
+		M:          s.M,
+		Model:      s.Model,
+		Sync_body:  s.Sync_body.Clone().(*promela_ast.BlockStmt),
+		Async_body: s.Async_body.Clone().(*promela_ast.BlockStmt),
+	}
 	return s1
 }
 

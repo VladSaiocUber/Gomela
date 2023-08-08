@@ -13,7 +13,7 @@ type DoStmt struct {
 	Guards []GuardStmt
 }
 
-func (s *DoStmt) GoNode() token.Position {
+func (s *DoStmt) Position() token.Position {
 	return s.Do
 }
 
@@ -26,7 +26,7 @@ func (s *DoStmt) Print(num_tabs int) (stmt string) {
 	return
 }
 
-func (s *DoStmt) Clone() Stmt {
+func (s *DoStmt) Clone() Node {
 	s1 := &DoStmt{Do: s.Do, Guards: []GuardStmt{}}
 
 	for _, g := range s.Guards {

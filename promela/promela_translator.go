@@ -61,7 +61,7 @@ type Model struct {
 	WaitGroups           map[ast.Expr]*WaitGroupStruct // the promela chan used in the module mapped to their go expr
 	Mutexes              []ast.Expr                    // The promela mutex declaration
 	Init                 *promela_ast.InitDef          // The proctype consisting of the "main" function of the source program
-	Global_vars          []promela_ast.Stmt            // the global variable used in the ltl properties
+	Global_vars          []promela_ast.Node            // the global variable used in the ltl properties
 	Defines              []promela_ast.DefineStmt      // the channel bounds
 	CommPars             []*CommPar                    // the communications paramer
 	Features             []Feature                     // The features for the survey
@@ -76,8 +76,10 @@ type Model struct {
 	Current_return_label string
 	defer_counter        int
 
-	Go_names      []string // function that can be used to behave as spawning goroutines
-	All_mandatory bool     // turns all optionnal params into mandatory if true
+	// Represents functions that may act as an alias for goroutine spawning
+	Go_names []string
+	// Turns all optional parameters mandatory
+	All_mandatory bool
 }
 
 // Used to represent a function for recursive calls
@@ -112,7 +114,7 @@ func (m *Model) GoToPromela(SEP string) (bool, error) {
 
 	m.Init = &promela_ast.InitDef{
 		Def:  m.Props.Fileset.Position(m.Fun.Pos()),
-		Body: &promela_ast.BlockStmt{List: []promela_ast.Stmt{}},
+		Body: &promela_ast.BlockStmt{List: []promela_ast.Node{}},
 	}
 
 	// Check whether generating the model produced an error
@@ -144,13 +146,22 @@ func (m *Model) GoToPromela(SEP string) (bool, error) {
 
 	Clean(m)
 
-	Print(m) // print the model
+	containsClose := m.Props.ContainsClose // Original contains close
+	m2 := m.Clone()
+	m.Props.ContainsClose = true
+	Print(m) // Print original the model
 	PrintFeatures(m.Features, m)
+	// Print ginger model
+	if !containsClose {
+		m2.Name = m.Name + "-ginger"
+		m2.Props.ContainsClose = containsClose
+		Print(m2)
+	}
 	return true, nil
 }
 
 func (m *Model) translateNewVar(s ast.Stmt, lhs []ast.Expr, rhs []ast.Expr) (b *promela_ast.BlockStmt, err error) {
-	b = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
+	b = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
 
 	new_var := false
 
@@ -175,7 +186,6 @@ func (m *Model) translateNewVar(s ast.Stmt, lhs []ast.Expr, rhs []ast.Expr) (b *
 	// check if the new var is a struct
 	for _, lh := range lhs {
 		t := m.AstMap[m.Package].TypesInfo.TypeOf(lh)
-
 		if t != nil {
 			t = GetElemIfPointer(t)
 			switch t := t.(type) {
@@ -204,7 +214,7 @@ func GetElemIfPointer(t types.Type) types.Type {
 }
 
 func (m *Model) translateStruct(s ast.Stmt, lhs ast.Expr, t types.Type, seen []*types.Named, inter_pro int, new_var bool) (b *promela_ast.BlockStmt, err error) {
-	b = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
+	b = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
 	// Tests if one of the field of the assign structs is a WG
 	// We have the definition of a struct
 
@@ -333,7 +343,7 @@ func (m *Model) translateStruct(s ast.Stmt, lhs ast.Expr, t types.Type, seen []*
 
 func (m *Model) translateNamed(s ast.Stmt, name ast.Expr, t *types.Named, seen []*types.Named, inter_pro int, new_var bool) (*promela_ast.BlockStmt, error) {
 	contains := false
-	b := &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
+	b := &promela_ast.BlockStmt{List: []promela_ast.Node{}}
 	for _, s := range seen {
 		if s.String() == t.String() {
 			contains = true
@@ -360,7 +370,7 @@ func (m *Model) translateNamed(s ast.Stmt, name ast.Expr, t *types.Named, seen [
 
 // Takes the declaration of a composite list {field: expr, ...} and checks for wg and mutex
 func (m *Model) lookForChans(lhs ast.Expr, rhs ast.Expr, new_var bool) (b *promela_ast.BlockStmt, err error) {
-	b = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
+	b = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
 	// Tests if one of the field of the assign structs is a WG
 
 	switch c := rhs.(type) {
@@ -436,7 +446,7 @@ func (m *Model) lookForChans(lhs ast.Expr, rhs ast.Expr, new_var bool) (b *prome
 }
 
 func (m *Model) translateWg(s ast.Stmt, name ast.Expr) (b *promela_ast.BlockStmt, err error) {
-	b = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
+	b = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
 	if !m.For_counter.In_for {
 
 		prom_wg_name := translateIdent(name)
@@ -463,7 +473,7 @@ func (m *Model) translateWg(s ast.Stmt, name ast.Expr) (b *promela_ast.BlockStmt
 
 			b.List = append(b.List,
 				&promela_ast.DeclStmt{Name: &prom_wg_name, Types: promela_types.Wgdef},
-				&promela_ast.RunStmt{X: &promela_ast.CallExpr{Fun: &promela_ast.Ident{Name: "wg_monitor"}, Args: []promela_ast.Expr{&prom_wg_name}}})
+				&promela_ast.RunStmt{X: &promela_ast.CallExpr{Fun: &promela_ast.Ident{Name: "wg_monitor"}, Args: []promela_ast.Node{&prom_wg_name}}})
 		}
 	} else {
 		m.PrintFeature(Feature{
@@ -483,7 +493,7 @@ func (m *Model) translateWg(s ast.Stmt, name ast.Expr) (b *promela_ast.BlockStmt
 }
 
 func (m *Model) translateMutex(s ast.Stmt, prom_mutex_name ast.Expr) (b *promela_ast.BlockStmt, err error) {
-	b = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
+	b = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
 
 	if !m.For_counter.In_for {
 
@@ -505,7 +515,7 @@ func (m *Model) translateMutex(s ast.Stmt, prom_mutex_name ast.Expr) (b *promela
 
 			b.List = append(b.List,
 				&promela_ast.DeclStmt{Name: &name, Types: promela_types.Mutexdef},
-				&promela_ast.RunStmt{X: &promela_ast.CallExpr{Fun: &promela_ast.Ident{Name: "mutex_monitor"}, Args: []promela_ast.Expr{&name}}})
+				&promela_ast.RunStmt{X: &promela_ast.CallExpr{Fun: &promela_ast.Ident{Name: "mutex_monitor"}, Args: []promela_ast.Node{&name}}})
 		}
 	} else {
 		m.PrintFeature(Feature{
@@ -525,7 +535,7 @@ func (m *Model) translateMutex(s ast.Stmt, prom_mutex_name ast.Expr) (b *promela
 }
 
 func (m *Model) translateChan(go_chan_name ast.Expr, args []ast.Expr) (b *promela_ast.BlockStmt, err error) {
-	b = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
+	b = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
 
 	if !m.For_counter.In_for {
 		// a new channel is found lets change its name, rename it in function and add to struct
@@ -596,7 +606,7 @@ func (m *Model) checkForBreak(body *promela_ast.BlockStmt, g *promela_ast.GotoSt
 
 func replaceBreak(body *promela_ast.BlockStmt, g *promela_ast.GotoStmt) {
 
-	promela_ast.Inspect(&promela_ast.BlockStmt{List: []promela_ast.Stmt{body}}, func(s promela_ast.Stmt) bool {
+	promela_ast.Inspect(&promela_ast.BlockStmt{List: []promela_ast.Node{body}}, func(s promela_ast.Node) bool {
 		switch s := s.(type) {
 		case *promela_ast.BlockStmt:
 			for i, ident := range s.List {
@@ -619,7 +629,7 @@ func replaceBreak(body *promela_ast.BlockStmt, g *promela_ast.GotoStmt) {
 
 func containsBreak(b *promela_ast.BlockStmt) bool {
 	contains := false
-	promela_ast.Inspect(b, func(stmt promela_ast.Stmt) bool {
+	promela_ast.Inspect(b, func(stmt promela_ast.Node) bool {
 		switch stmt := stmt.(type) {
 
 		case *promela_ast.Ident:
@@ -639,9 +649,11 @@ func containsBreak(b *promela_ast.BlockStmt) bool {
 }
 
 func (m *Model) TranslateExpr(expr ast.Expr) (b *promela_ast.BlockStmt, err error) {
-	stmts := &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
+	stmts := &promela_ast.BlockStmt{List: []promela_ast.Node{}}
 
 	switch expr := expr.(type) {
+	case *ast.CompositeLit:
+
 	case *ast.BinaryExpr:
 		e1, err1 := m.TranslateExpr(expr.X)
 		if err1 != nil {
@@ -677,7 +689,7 @@ func (m *Model) TranslateExpr(expr ast.Expr) (b *promela_ast.BlockStmt, err erro
 					return stmts, errors.New(UNKNOWN_CHAN_CLOSE + m.Props.Fileset.Position(expr.Pos()).String())
 				}
 			} else if name.Name == "panic" && len(expr.Args) == 1 { // panic call
-				stmts.List = append(stmts.List, &promela_ast.CallExpr{Call: m.Props.Fileset.Position(expr.Pos()), Model: "Panic", Fun: &promela_ast.Ident{Name: "assert"}, Args: []promela_ast.Expr{&promela_ast.Ident{Name: "20==0"}}})
+				stmts.List = append(stmts.List, &promela_ast.CallExpr{Call: m.Props.Fileset.Position(expr.Pos()), Model: "Panic", Fun: &promela_ast.Ident{Name: "assert"}, Args: []promela_ast.Node{&promela_ast.Ident{Name: "20==0"}}})
 			} else {
 
 				call, err1 := m.TranslateCallExpr(expr)
@@ -741,17 +753,9 @@ func (m *Model) TranslateExpr(expr ast.Expr) (b *promela_ast.BlockStmt, err erro
 
 			var guard promela_ast.GuardStmt
 
-			guard, err = m.translateRcvStmt(expr.X, &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}, &promela_ast.BlockStmt{List: []promela_ast.Stmt{}})
-			if_stmt := &promela_ast.IfStmt{
-				Init: &promela_ast.BlockStmt{
-					List: []promela_ast.Stmt{},
-				},
-				Guards: []promela_ast.GuardStmt{},
-			}
+			guard, err = m.translateRcvStmt(false, expr.X, &promela_ast.BlockStmt{List: []promela_ast.Node{}}, &promela_ast.BlockStmt{List: []promela_ast.Node{}})
 
-			if_stmt.Guards = append(if_stmt.Guards, guard)
-
-			stmts.List = append(stmts.List, if_stmt)
+			stmts.List = append(stmts.List, guard)
 
 		default:
 			return m.TranslateExpr(expr.X)
@@ -1235,6 +1239,7 @@ func getIdent(expr ast.Expr) *ast.Ident {
 	return nil
 }
 
+// Produces a pretty-printed AST expression.
 func prettyPrint(expr ast.Expr) string {
 	switch expr := expr.(type) {
 	case *ast.CallExpr:
@@ -1253,4 +1258,77 @@ func prettyPrint(expr ast.Expr) string {
 	default:
 		return fmt.Sprint(expr)
 	}
+}
+
+// Produces a deep copy of the model.
+func (m *Model) Clone() *Model {
+	m2 := &Model{
+		Props: m.Props,
+
+		Result_fodler:        m.Result_fodler,
+		Project_name:         m.Project_name,
+		Package:              m.Package,
+		Name:                 m.Name,
+		Commit:               m.Commit,
+		RecFuncs:             m.RecFuncs,
+		SpawningFuncs:        m.SpawningFuncs,
+		Fun:                  m.Fun,             // the function being modelled
+		Mutexes:              m.Mutexes,         // The promela mutex declaration
+		CommPars:             m.CommPars,        // the communications paramer
+		Features:             m.Features,        // The features for the survey
+		process_counter:      m.process_counter, // to give unique name to Promela processes
+		func_counter:         m.func_counter,    // to give unique name to inline func call
+		Counter:              m.Counter,
+		AstMap:               m.AstMap,
+		Projects_folder:      m.Projects_folder,
+		GenerateFeatures:     m.GenerateFeatures, // should the model print features ?
+		Current_return_label: m.Current_return_label,
+		defer_counter:        m.defer_counter,
+
+		Go_names:      m.Go_names,      // function that can be used to behave as spawning goroutines
+		All_mandatory: m.All_mandatory, // turns all optionnal params into mandatory if true
+	}
+
+	if m.For_counter != nil {
+		m2.For_counter = new(ForCounter)
+		*m2.For_counter = *m.For_counter
+	}
+
+	if m.ClosedVars != nil {
+		m2.ClosedVars = make(map[*ChanStruct][]ast.Expr)
+		for c, es := range m.ClosedVars {
+			m2.ClosedVars[c] = es
+		}
+	}
+	for _, d := range m.Defines {
+		d2 := (&d).Clone().(*promela_ast.DefineStmt)
+		m2.Defines = append(m2.Defines, *d2)
+	}
+	for _, d := range m.Global_vars {
+		m2.Global_vars = append(m2.Global_vars, d.Clone())
+	}
+	for _, d := range m.Inlines {
+		d2 := d.Clone().(*promela_ast.Inline)
+		m2.Inlines = append(m2.Inlines, d2)
+	}
+	for _, d := range m.Proctypes {
+		d2 := d.Clone().(*promela_ast.Proctype)
+		m2.Proctypes = append(m2.Proctypes, d2)
+	}
+	if m.Init != nil {
+		m2.Init = m.Init.Clone().(*promela_ast.InitDef)
+	}
+	if m.WaitGroups != nil {
+		m2.WaitGroups = make(map[ast.Expr]*WaitGroupStruct)
+		for e, wg := range m.WaitGroups {
+			m2.WaitGroups[e] = wg
+		}
+	}
+	if m.Chans != nil {
+		m2.Chans = make(map[ast.Expr]*ChanStruct)
+		for e, c := range m.Chans {
+			m2.Chans[e] = c
+		}
+	}
+	return m2
 }

@@ -13,7 +13,7 @@ type ChanStructDef struct {
 	Decls []*DeclStmt
 }
 
-func (c *ChanStructDef) GoNode() token.Position {
+func (c *ChanStructDef) Position() token.Position {
 	return c.Def
 }
 
@@ -32,7 +32,7 @@ func (c *ChanStructDef) Print(num_tabs int) (stmt string) {
 	return
 }
 
-func (s *ChanStructDef) Clone() Stmt {
+func (s *ChanStructDef) Clone() Node {
 	s1 := &ChanStructDef{Def: s.Def, Name: s.Name.Clone().(*Ident), Defs: []*Chandef{}, Decls: []*DeclStmt{}}
 
 	for _, d := range s.Defs {

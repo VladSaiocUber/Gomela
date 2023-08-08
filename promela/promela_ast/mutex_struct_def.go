@@ -12,7 +12,7 @@ type MutexStructDef struct {
 	Defs []*Chandef
 }
 
-func (c *MutexStructDef) GoNode() token.Position {
+func (c *MutexStructDef) Position() token.Position {
 	return c.Def
 }
 
@@ -27,7 +27,7 @@ func (c *MutexStructDef) Print(num_tabs int) (stmt string) {
 	return
 }
 
-func (s *MutexStructDef) Clone() Stmt {
+func (s *MutexStructDef) Clone() Node {
 	s1 := &MutexStructDef{Def: s.Def, Name: s.Name.Clone().(*Ident), Defs: []*Chandef{}}
 
 	for _, d := range s.Defs {

@@ -9,9 +9,9 @@ import (
 )
 
 func (m *Model) translateSwitchStmt(s *ast.SwitchStmt) (b *promela_ast.BlockStmt, defers *promela_ast.BlockStmt, err error) {
-	b = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
-	defers = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
-	i := &promela_ast.IfStmt{If: m.Props.Fileset.Position(s.Pos()), Init: &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}}
+	b = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
+	defers = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
+	i := &promela_ast.IfStmt{If: m.Props.Fileset.Position(s.Pos()), Init: &promela_ast.BlockStmt{List: []promela_ast.Node{}}}
 
 	tag, err1 := m.TranslateExpr(s.Tag)
 	if err1 != nil {

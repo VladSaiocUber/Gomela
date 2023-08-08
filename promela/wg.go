@@ -6,9 +6,12 @@ import (
 	"github.com/nicolasdilley/gomela/promela/promela_ast"
 )
 
-func (m *Model) parseWgFunc(call_expr *ast.CallExpr, name *ast.SelectorExpr) (stmts *promela_ast.BlockStmt, err error) {
-	stmts = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
-	if name.Sel.Name == "Add" {
+// parseWgMethod accepts a call expression and
+func (m *Model) parseWgMethod(call_expr *ast.CallExpr, name *ast.SelectorExpr) (stmts *promela_ast.BlockStmt, err error) {
+	stmts = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
+
+	switch name.Sel.Name {
+	case "Add":
 
 		ub, err1 := m.lookUp(call_expr.Args[0], ADD_BOUND, m.For_counter.In_for)
 
@@ -46,7 +49,7 @@ func (m *Model) parseWgFunc(call_expr *ast.CallExpr, name *ast.SelectorExpr) (st
 				Expr:  &promela_ast.Ident{Name: "ok"}},
 		)
 
-	} else if name.Sel.Name == "Done" {
+	case "Done":
 		if m.For_counter.In_for {
 			m.PrintFeature(Feature{
 				Proj_name: m.Project_name,
@@ -76,7 +79,7 @@ func (m *Model) parseWgFunc(call_expr *ast.CallExpr, name *ast.SelectorExpr) (st
 				Model: "Done()",
 				Expr:  &promela_ast.Ident{Name: "ok"}},
 		)
-	} else if name.Sel.Name == "Wait" {
+	case "Wait":
 		stmts.List = append(stmts.List, &promela_ast.RcvStmt{
 			Rcv:   m.Props.Fileset.Position(name.Pos()),
 			Model: "Wait()",

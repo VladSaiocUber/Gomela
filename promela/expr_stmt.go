@@ -7,8 +7,8 @@ import (
 )
 
 func (m *Model) translateExprStmt(s *ast.ExprStmt) (b *promela_ast.BlockStmt, defers *promela_ast.BlockStmt, err error) {
-	b = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
-	defers = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
+	b = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
+	defers = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
 
 	expr, err1 := m.TranslateExpr(s.X)
 

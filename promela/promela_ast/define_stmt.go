@@ -9,10 +9,10 @@ import (
 type DefineStmt struct {
 	Define token.Position
 	Name   *Ident
-	Rhs    Expr
+	Rhs    Node
 }
 
-func (s *DefineStmt) GoNode() token.Position {
+func (s *DefineStmt) Position() token.Position {
 	return s.Define
 }
 func (s *DefineStmt) Print(num_tabs int) string {
@@ -21,7 +21,7 @@ func (s *DefineStmt) Print(num_tabs int) string {
 	return toPrint
 }
 
-func (s *DefineStmt) Clone() Stmt {
+func (s *DefineStmt) Clone() Node {
 	s1 := &DefineStmt{Define: s.Define, Name: s.Name.Clone().(*Ident), Rhs: s.Rhs.Clone()}
 	return s1
 }

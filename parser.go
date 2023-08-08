@@ -54,7 +54,7 @@ func ParseAst(fileSet *token.FileSet, proj_name string, commit string, ast_map m
 						WaitGroups:           make(map[ast.Expr]*promela.WaitGroupStruct),
 						Mutexes:              []ast.Expr{},
 						Commit:               commit,
-						Global_vars:          []promela_ast.Stmt{},
+						Global_vars:          []promela_ast.Node{},
 						For_counter:          &promela.ForCounter{},
 						Projects_folder:      projects_folder,
 						GenerateFeatures:     true,

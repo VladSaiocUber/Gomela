@@ -57,7 +57,7 @@ func runGinger(modelPath string) {
 	log.Println("Result:", string(out))
 }
 
-func VerifyModels(ver_info *VerificationInfo, models []os.FileInfo, dir_name string, bounds_to_check []interface{}) {
+func VerifyModels(ver_info *VerificationInfo, models []os.FileInfo, dir_name string, bounds_to_check ...interface{}) {
 
 	if len(bounds_to_check) == 0 {
 		bounds_to_check = []interface{}{0, 1, 3}
@@ -90,7 +90,9 @@ func VerifyModels(ver_info *VerificationInfo, models []os.FileInfo, dir_name str
 			continue
 		}
 
-		runGinger(path)
+		if strings.Contains(path, "-ginger") {
+			runGinger(path)
+		}
 		var git_link string
 		file_content := string(content)
 		lines := strings.Split(file_content, "\n")

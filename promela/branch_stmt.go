@@ -9,8 +9,8 @@ import (
 )
 
 func (m *Model) translateBranchStmt(s *ast.BranchStmt) (b *promela_ast.BlockStmt, defers *promela_ast.BlockStmt, err error) {
-	b = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
-	defers = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
+	b = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
+	defers = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
 	br := &promela_ast.GotoStmt{
 		Goto: m.Props.Fileset.Position(s.Pos()),
 	}

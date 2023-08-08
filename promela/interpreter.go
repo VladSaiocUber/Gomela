@@ -96,7 +96,7 @@ func Print(m *Model) {
 	RUnlock := &promela_ast.Chandef{Name: &promela_ast.Ident{Name: "RUnlock"}, Types: []promela_types.Types{promela_types.Bool}, Size: &promela_ast.Ident{Name: "0"}}
 	mutex_struct.Defs = append(mutex_struct.Defs, lock, unlock, RLock, RUnlock)
 
-	b := promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
+	b := promela_ast.BlockStmt{List: []promela_ast.Node{}}
 
 	// setting the size of the int chan
 	b.List = append(b.List, m.Global_vars...)
@@ -164,7 +164,7 @@ func Print(m *Model) {
 func numCommParInModel(m *Model) (int, int) {
 	num_mand_param := 0
 	num_opt_param := 0
-	// findParam := func(s promela_ast.Stmt) bool {
+	// findParam := func(s promela_ast.Node) bool {
 	// 	num_mand_param := 0
 	// 	num_opt_param := 0
 

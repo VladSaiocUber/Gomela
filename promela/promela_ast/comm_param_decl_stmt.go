@@ -11,10 +11,10 @@ type CommParamDeclStmt struct {
 	Name      *Ident
 	Types     promela_types.Types
 	Mandatory bool
-	Rhs       Expr // can be null if not assigned
+	Rhs       Node // can be null if not assigned
 }
 
-func (s *CommParamDeclStmt) GoNode() token.Position {
+func (s *CommParamDeclStmt) Position() token.Position {
 	return s.Decl
 }
 
@@ -35,7 +35,7 @@ func (s *CommParamDeclStmt) Print(num_tabs int) (stmt string) {
 	return
 }
 
-func (s *CommParamDeclStmt) Clone() Stmt {
+func (s *CommParamDeclStmt) Clone() Node {
 	s1 := &CommParamDeclStmt{Decl: s.Decl, Name: s.Name.Clone().(*Ident), Types: s.Types}
 	if s.Rhs != nil {
 		s1.Rhs = s.Rhs.Clone()

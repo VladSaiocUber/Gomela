@@ -8,7 +8,7 @@ type Ident struct {
 	Name  string
 }
 
-func (i *Ident) GoNode() token.Position {
+func (i *Ident) Position() token.Position {
 	return i.Ident
 }
 
@@ -16,7 +16,7 @@ func (i *Ident) Print(num_tabs int) string {
 	return i.Name
 }
 
-func (s *Ident) Clone() Stmt {
+func (s *Ident) Clone() Node {
 	s1 := &Ident{Ident: s.Ident, Name: s.Name}
 	return s1
 }

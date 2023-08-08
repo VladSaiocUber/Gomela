@@ -6,11 +6,11 @@ import "go/token"
 type RcvStmt struct {
 	Rcv   token.Position
 	Model string
-	Chan  Expr // the chan that we want to receive on
-	Rhs   Expr // the var where we are going to put the value received or a match of a particular value
+	Chan  Node // the chan that we want to receive on
+	Rhs   Node // the var where we are going to put the value received or a match of a particular value
 }
 
-func (s *RcvStmt) GoNode() token.Position {
+func (s *RcvStmt) Position() token.Position {
 	return s.Rcv
 }
 
@@ -22,7 +22,7 @@ func (s *RcvStmt) Print(num_tabs int) string {
 	}
 	return s.Chan.Print(num_tabs) + "?" + s.Rhs.Print(num_tabs) + comment
 }
-func (s *RcvStmt) Clone() Stmt {
+func (s *RcvStmt) Clone() Node {
 	s1 := &RcvStmt{Rcv: s.Rcv, Chan: s.Chan.Clone(), Rhs: s.Rhs.Clone()}
 	return s1
 }

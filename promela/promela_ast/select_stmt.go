@@ -13,7 +13,7 @@ type SelectStmt struct {
 	Has_default bool
 }
 
-func (s *SelectStmt) GoNode() token.Position {
+func (s *SelectStmt) Position() token.Position {
 	return s.Select
 }
 
@@ -33,7 +33,7 @@ func (s *SelectStmt) Print(num_tabs int) (stmt string) {
 	return
 }
 
-func (s *SelectStmt) Clone() Stmt {
+func (s *SelectStmt) Clone() Node {
 	s1 := &SelectStmt{Select: s.Select, Guards: []GuardStmt{}, Has_default: s.Has_default}
 
 	for _, g := range s.Guards {

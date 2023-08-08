@@ -10,11 +10,11 @@ import (
 // Guard stmt in promela : (cond) -> body
 type SingleGuardStmt struct {
 	Guard token.Position
-	Cond  Stmt
+	Cond  Node
 	Body  *BlockStmt
 }
 
-func (s *SingleGuardStmt) GoNode() token.Position {
+func (s *SingleGuardStmt) Position() token.Position {
 	return s.Guard
 }
 
@@ -29,7 +29,7 @@ func (s *SingleGuardStmt) Print(num_tabs int) (stmt string) {
 	return
 }
 
-func (s *SingleGuardStmt) Clone() Stmt {
+func (s *SingleGuardStmt) Clone() Node {
 	s1 := &SingleGuardStmt{Guard: s.Guard, Cond: s.Cond.Clone(), Body: s.Body.Clone().(*BlockStmt)}
 	return s1
 }

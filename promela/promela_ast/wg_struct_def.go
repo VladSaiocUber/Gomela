@@ -12,7 +12,7 @@ type WgStructDef struct {
 	Defs []*Chandef
 }
 
-func (c *WgStructDef) GoNode() token.Position {
+func (c *WgStructDef) Position() token.Position {
 	return c.Def
 }
 
@@ -27,7 +27,7 @@ func (c *WgStructDef) Print(num_tabs int) (stmt string) {
 	return
 }
 
-func (s *WgStructDef) Clone() Stmt {
+func (s *WgStructDef) Clone() Node {
 	s1 := &WgStructDef{Def: s.Def, Name: s.Name.Clone().(*Ident), Defs: []*Chandef{}}
 
 	for _, d := range s.Defs {

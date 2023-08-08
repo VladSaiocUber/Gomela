@@ -14,8 +14,8 @@ var (
 )
 
 func (m *Model) translateForStmt(s *ast.ForStmt) (b *promela_ast.BlockStmt, defers *promela_ast.BlockStmt, err error) {
-	b = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
-	defers = &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}
+	b = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
+	defers = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
 
 	was_in_for := m.For_counter.In_for //used to check if this is the outer loop
 	had_go := m.For_counter.With_go
@@ -97,7 +97,7 @@ func (m *Model) translateForStmt(s *ast.ForStmt) (b *promela_ast.BlockStmt, defe
 				b.List = append(b.List, d, for_label)
 			} else {
 				// print the for loop  with the if
-				if_stmt := promela_ast.IfStmt{Init: &promela_ast.BlockStmt{List: []promela_ast.Stmt{}}}
+				if_stmt := promela_ast.IfStmt{Init: &promela_ast.BlockStmt{List: []promela_ast.Node{}}}
 
 				lb_not_given := promela_ast.BinaryExpr{Lhs: lb, Rhs: &promela_ast.Ident{Name: OPTIONAL_BOUND}, Op: "!="}
 				ub_not_given := promela_ast.BinaryExpr{Lhs: ub, Rhs: &promela_ast.Ident{Name: OPTIONAL_BOUND}, Op: "!="}
@@ -113,7 +113,7 @@ func (m *Model) translateForStmt(s *ast.ForStmt) (b *promela_ast.BlockStmt, defe
 					Cond: &promela_ast.BinaryExpr{Lhs: &lb_not_given,
 						Rhs: &ub_not_given, Op: "&&"},
 					Body: &promela_ast.BlockStmt{
-						List: []promela_ast.Stmt{
+						List: []promela_ast.Node{
 							&promela_ast.ForStmt{
 								For:  m.Props.Fileset.Position(s.Pos()),
 								Lb:   lb,
@@ -128,9 +128,9 @@ func (m *Model) translateForStmt(s *ast.ForStmt) (b *promela_ast.BlockStmt, defe
 				d.Guards = append(d.Guards, &promela_ast.SingleGuardStmt{
 					Cond: &promela_ast.Ident{Name: "true"},
 					Body: &promela_ast.BlockStmt{
-						List: []promela_ast.Stmt{&promela_ast.Ident{Name: "break"}}}})
+						List: []promela_ast.Node{&promela_ast.Ident{Name: "break"}}}})
 
-				els := &promela_ast.SingleGuardStmt{Cond: &promela_ast.Ident{Name: "else"}, Body: &promela_ast.BlockStmt{List: []promela_ast.Stmt{d, for_label}}}
+				els := &promela_ast.SingleGuardStmt{Cond: &promela_ast.Ident{Name: "else"}, Body: &promela_ast.BlockStmt{List: []promela_ast.Node{d, for_label}}}
 
 				if_stmt.Guards = []promela_ast.GuardStmt{then, els}
 
@@ -158,7 +158,7 @@ func (m *Model) translateBodyOfForLoop(s *ast.BlockStmt) (*promela_ast.BlockStmt
 
 	stmts, d, err := m.TranslateBlockStmt(s)
 	body := &promela_ast.BlockStmt{List: append(
-		[]promela_ast.Stmt{&promela_ast.LabelStmt{Name: label_name}},
+		[]promela_ast.Node{&promela_ast.LabelStmt{Name: label_name}},
 		stmts.List...)}
 	body.List = append(body.List, for_end_label2)
 

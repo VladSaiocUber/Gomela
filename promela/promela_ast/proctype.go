@@ -12,11 +12,11 @@ type Proctype struct {
 	Pos    token.Position
 	Active bool       // is it an active process ?
 	Body   *BlockStmt // the body of the process
-	Params []Expr
+	Params []Node
 	Decl   *ast.FuncDecl
 }
 
-func (p *Proctype) GoNode() token.Position {
+func (p *Proctype) Position() token.Position {
 	return p.Pos
 }
 
@@ -39,7 +39,7 @@ func (p *Proctype) Print(num_tabs int) (stmt string) {
 	decl := &DeclStmt{Name: &Ident{Name: "i"}, Types: promela_types.Int}
 	state := &DeclStmt{Name: &Ident{Name: "state"}, Types: promela_types.Bool, Rhs: &Ident{Name: "true"}}
 	num_msgs := &DeclStmt{Name: &Ident{Name: "num_msgs"}, Types: promela_types.Int}
-	p.Body.List = append([]Stmt{decl, state, num_msgs}, p.Body.List...)
+	p.Body.List = append([]Node{decl, state, num_msgs}, p.Body.List...)
 	stmt += ") {\n"
 	stmt += "\tbool closed; \n"
 	stmt += "\tbool ok; \n"
@@ -48,8 +48,8 @@ func (p *Proctype) Print(num_tabs int) (stmt string) {
 
 	return
 }
-func (s *Proctype) Clone() Stmt {
-	s1 := &Proctype{Pos: s.Pos, Name: s.Name.Clone().(*Ident), Body: s.Body.Clone().(*BlockStmt), Active: s.Active, Params: []Expr{}}
+func (s *Proctype) Clone() Node {
+	s1 := &Proctype{Pos: s.Pos, Name: s.Name.Clone().(*Ident), Body: s.Body.Clone().(*BlockStmt), Active: s.Active, Params: []Node{}}
 
 	for _, p := range s.Params {
 		s1.Params = append(s1.Params, p.Clone())
@@ -62,8 +62,8 @@ func (p *Proctype) DeclAtStart() {
 	p.Body.List = append(decls, p.Body.List...)
 }
 
-func DeclInBlock(block *BlockStmt) []Stmt {
-	decls := []Stmt{}
+func DeclInBlock(block *BlockStmt) []Node {
+	decls := []Node{}
 	for i := len(block.List) - 1; i >= 0; i-- {
 		switch stmt := block.List[i].(type) {
 		case *Chandef,
