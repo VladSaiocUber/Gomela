@@ -61,7 +61,7 @@ type Model struct {
 	WaitGroups           map[ast.Expr]*WaitGroupStruct // the promela chan used in the module mapped to their go expr
 	Mutexes              []ast.Expr                    // The promela mutex declaration
 	Init                 *promela_ast.InitDef          // The proctype consisting of the "main" function of the source program
-	Global_vars          []promela_ast.Stmt            // the global variable used in the ltl properties
+	Global_vars          []promela_ast.Node            // the global variable used in the ltl properties
 	Defines              	[]promela_ast.DefineStmt      // the channel bounds
 	CommPars             []*CommPar                    // the communications paramer
 	Features             []Feature                     // The features for the survey
@@ -689,7 +689,7 @@ func (m *Model) TranslateExpr(expr ast.Expr) (b *promela_ast.BlockStmt, err erro
 					Call: m.Props.Fileset.Position(expr.Pos()),
 					Model: "Panic",
 					Fun: &promela_ast.Ident{Name: "assert"},
-					Args: []promela_ast.Expr{
+					Args: []promela_ast.Node{
 						&promela_ast.Ident{
 							Name: "20==0",
 						}}})
