@@ -49,5 +49,5 @@ do
     continue
   fi
   echo "Now processing: $ROOT/$TARGET/$l"
-  ./gomela -result_folder "$RESULTS/$TARGET/$l" fs "$ROOT/$TARGET/$l"
+  ./gomela -am -result_folder "$RESULTS/$TARGET/$l" fs "$ROOT/$TARGET/$l"
 done
