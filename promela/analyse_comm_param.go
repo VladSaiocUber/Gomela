@@ -12,13 +12,18 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
+// Denotes a communication parameter.
 type CommPar struct {
+  // Unique identifier (may not always) coincide with the actual parameter expression.
 	Name      *ast.Ident
 	Mandatory bool
 	Type      types.Type
+  // Original communication parameter expression
 	Expr      ast.Expr
 	Pos       int // the position of the param in the fun decl (i.e, b is 0 and a is 1 in f(b,a))
+  // Marks communication parameter as a candidate
 	Candidate bool
+  // Marks the communication parameter as an alias
 	Alias     bool
 }
 
@@ -533,10 +538,9 @@ func (m *Model) spawns(stmts *ast.BlockStmt, log bool) bool {
 }
 
 func (m *Model) isCallSpawning(call_expr *ast.CallExpr, log bool) (recursive bool, call_spawning bool) {
-	contains_chan := false
-	contains_wg := false
-	call_spawning = false
-	fun := ""
+	var contains_chan, contains_wg bool
+	var fun string
+
 	fun_pack := m.Package
 	// check if the goroutine or the call has a chan as param by looking at func decl
 	switch f := call_expr.Fun.(type) {
