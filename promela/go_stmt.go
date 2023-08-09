@@ -396,14 +396,6 @@ func (m *Model) translateParams(new_mod *Model, decl *ast.FuncDecl, call_expr *a
 	return params, args, hasChan, known, nil
 }
 
-// func (m *Model) GenerateParamAndArg(arg ast.Expr, t promela_types.Types) ([]*promela_ast.Param, []promela_ast.Expr) {
-// 	name := translateIdent(arg).Name
-// 	p := &promela_ast.Param{Name: name, Pos: m.Props.Fileset.Position(arg.Pos()), Types: t}
-// 	e := &promela_ast.Ident{Name: name}
-
-// 	return p, e
-// }
-
 func (m *Model) FindFunDecl(call_expr *ast.CallExpr) (*ast.FuncDecl, *ast.CallExpr, string, error) {
 	pack_name := m.Package
 

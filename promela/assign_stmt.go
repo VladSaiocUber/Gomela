@@ -11,10 +11,10 @@ import (
 func (m *Model) translateAssignStmt(s *ast.AssignStmt) (b *promela_ast.BlockStmt, err error) {
 
 	b, err = m.translateNewVar(s, s.Lhs, s.Rhs)
-
 	if err != nil {
 		return b, err
 	}
+
 	for i, spec := range s.Rhs {
 		switch spec := spec.(type) {
 		case *ast.FuncLit:
@@ -37,15 +37,16 @@ func (m *Model) translateAssignStmt(s *ast.AssignStmt) (b *promela_ast.BlockStmt
 
 				b.List = append(b.List, if_stmt)
 				ch := m.getChanStruct(spec.X)
-				if len(s.Lhs) == 2 {
-					switch v := s.Lhs[1].(type) {
-					case *ast.Ident:
-						if v.Name != "_" {
-							m.ClosedVars[ch] = append(m.ClosedVars[ch], v)
-						}
-					case *ast.SelectorExpr:
+				if len(s.Lhs) != 2 {
+					continue
+				}
+				switch v := s.Lhs[1].(type) {
+				case *ast.Ident:
+					if v.Name != "_" {
 						m.ClosedVars[ch] = append(m.ClosedVars[ch], v)
 					}
+				case *ast.SelectorExpr:
+					m.ClosedVars[ch] = append(m.ClosedVars[ch], v)
 				}
 			default:
 				expr, err1 := m.TranslateExpr(spec.X)
@@ -60,30 +61,41 @@ func (m *Model) translateAssignStmt(s *ast.AssignStmt) (b *promela_ast.BlockStmt
 			}
 		default:
 			expr, err1 := m.TranslateExpr(spec)
-
-			if err1 != nil {
-				return expr, err1
-			}
+			err = errors.Join(err, err1)
 
 			if len(expr.List) > 0 {
 				addBlock(b, expr)
-			} else {
+				continue
+			}
+
+			// Checks if all is known on the right side
+			// check if the left-hand side is a comm param
+			if !(m.IsExprKnown(spec) && m.IsExprKnown(s.Lhs[i])) {
+				continue
+			}
+			// If it is then translate the assignment as is
+			lhs, _ := m.TranslateKnownExpr(s.Lhs[i])
+			rhs, comm_pars := m.TranslateKnownExpr(spec)
+			stmt := []promela_ast.Stmt{
+				&promela_ast.AssignStmt{Lhs: lhs, Rhs: rhs}}
+				// If the assignment is a definition, swap the assignment statement
+				// with a declaration, and assign it the type of the right-hand side
+				// expression.
+				if s.Tok == token.DEFINE {
+					ty, ok := m.ExprToPromelaType(spec)
+					if ok {
+						stmt[0] = &promela_ast.DeclStmt{
+							Decl: m.Props.Fileset.Position(spec.Pos()),
+							Name: lhs.(*promela_ast.Ident),
+							Types: ty,
+							Rhs: rhs,
+						}
+					}
+				}
 
 				// flag the lhs as an alias so that its not turned into an unknown comm param
-
-				// Checks if all is known on the right side
-				// check if the left-hand side is a comm param
-				if m.IsExprKnown(spec) && m.IsExprKnown(s.Lhs[i]) {
-					// If it is then translate the assignment as is
-
-					lhs, _ := m.TranslateKnownExpr(s.Lhs[i])
-					rhs, comm_pars := m.TranslateKnownExpr(spec)
-					addBlock(b, &promela_ast.BlockStmt{List: []promela_ast.Stmt{
-						&promela_ast.AssignStmt{Lhs: lhs, Rhs: rhs}}})
-
-					m.FlagCommParamAsAlias(s.Lhs[i], comm_pars)
-				}
-			}
+			m.FlagCommParamAsAlias(s.Lhs[i], comm_pars)
+			addBlock(b, &promela_ast.BlockStmt{List: stmt})
 		}
 	}
 
