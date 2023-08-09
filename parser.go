@@ -238,9 +238,8 @@ func takesCommParAsParam(decl *ast.FuncDecl, pack *packages.Package) bool {
 
 func structContainsCommPar(t types.Type, seen []*types.Named) bool {
 	t = promela.GetElemIfPointer(t)
-	if t.String() == "sync.WaitGroup" ||
-		t.String() == "sync.Mutex" ||
-		t.String() == "sync.RWMutex" {
+	switch t.String() {
+	case "sync.WaitGroup", "sync.Mutex", "sync.RWMutex":
 		return true
 	}
 

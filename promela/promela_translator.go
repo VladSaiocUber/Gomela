@@ -61,8 +61,8 @@ type Model struct {
 	WaitGroups           map[ast.Expr]*WaitGroupStruct // the promela chan used in the module mapped to their go expr
 	Mutexes              []ast.Expr                    // The promela mutex declaration
 	Init                 *promela_ast.InitDef          // The proctype consisting of the "main" function of the source program
-	Global_vars          []promela_ast.Node            // the global variable used in the ltl properties
-	Defines              []promela_ast.DefineStmt      // the channel bounds
+	Global_vars          []promela_ast.Stmt            // the global variable used in the ltl properties
+	Defines              	[]promela_ast.DefineStmt      // the channel bounds
 	CommPars             []*CommPar                    // the communications paramer
 	Features             []Feature                     // The features for the survey
 	ClosedVars           map[*ChanStruct][]ast.Expr    // The variable that are used to test if a channel is closed when receiving (i.e ok in r,ok := >-ch )
@@ -168,9 +168,7 @@ func (m *Model) translateNewVar(s ast.Stmt, lhs []ast.Expr, rhs []ast.Expr) (b *
 	// check if the assign or declaration is a declaration of a new var
 	switch s := s.(type) {
 	case *ast.AssignStmt:
-		if s.Tok == token.DEFINE {
-			new_var = true
-		}
+		new_var = s.Tok == token.DEFINE
 	default:
 		new_var = true
 	}
@@ -189,7 +187,6 @@ func (m *Model) translateNewVar(s ast.Stmt, lhs []ast.Expr, rhs []ast.Expr) (b *
 		if t != nil {
 			t = GetElemIfPointer(t)
 			switch t := t.(type) {
-
 			case *types.Named:
 				b1, err1 := m.translateStruct(s, lh, t, []*types.Named{t}, 0, new_var)
 				if err1 != nil {
@@ -435,9 +432,6 @@ func (m *Model) lookForChans(lhs ast.Expr, rhs ast.Expr, new_var bool) (b *prome
 				}
 
 				addBlock(b, b1)
-				// default:
-				// 	ast.Print(m.Props.Fileset. expr)
-
 			}
 		}
 	}
@@ -656,68 +650,73 @@ func (m *Model) TranslateExpr(expr ast.Expr) (b *promela_ast.BlockStmt, err erro
 
 	case *ast.BinaryExpr:
 		e1, err1 := m.TranslateExpr(expr.X)
-		if err1 != nil {
-			err = err1
-		}
+		err = errors.Join(err, err1)
 		addBlock(stmts, e1)
 
-		expr2, err2 := m.TranslateExpr(expr.Y)
-		if err2 != nil {
-			err = err2
-		}
-		addBlock(stmts, expr2)
+		e2, err2 := m.TranslateExpr(expr.Y)
+		err = errors.Join(err, err2)
+		addBlock(stmts, e2)
 
 	case *ast.CallExpr:
 		switch name := expr.Fun.(type) {
 		case *ast.Ident:
-			if name.Name == "close" && len(expr.Args) == 1 { // closing a chan
+			switch {
+			// Closing a channel
+			case name.Name == "close" && len(expr.Args) == 1:
 				rcv := &promela_ast.RcvStmt{Model: "Close", Rcv: m.Props.Fileset.Position(name.Pos())}
 
-				if m.containsChan(expr.Args[0]) {
-					m.Props.ContainsClose = true
-					chan_name := m.getChanStruct(expr.Args[0])
-
-					rcv.Chan = &promela_ast.SelectorExpr{
-						X: chan_name.Name, Sel: &promela_ast.Ident{Name: "closing"},
-						Pos: m.Props.Fileset.Position(expr.Args[0].Pos()),
-					}
-					rcv.Rhs = &promela_ast.Ident{Name: "closed"}
-
-					assert := &promela_ast.AssertStmt{Model: "Close", Pos: m.Props.Fileset.Position(expr.Pos()), Expr: &promela_ast.Ident{Name: "!closed"}}
-					stmts.List = append(stmts.List, rcv, assert)
-				} else {
+				if !m.containsChan(expr.Args[0]) {
 					return stmts, errors.New(UNKNOWN_CHAN_CLOSE + m.Props.Fileset.Position(expr.Pos()).String())
 				}
-			} else if name.Name == "panic" && len(expr.Args) == 1 { // panic call
-				stmts.List = append(stmts.List, &promela_ast.CallExpr{Call: m.Props.Fileset.Position(expr.Pos()), Model: "Panic", Fun: &promela_ast.Ident{Name: "assert"}, Args: []promela_ast.Node{&promela_ast.Ident{Name: "20==0"}}})
-			} else {
+				m.Props.ContainsClose = true
+				chan_name := m.getChanStruct(expr.Args[0])
 
-				call, err1 := m.TranslateCallExpr(expr)
-				if err1 != nil {
-					err = err1
+				rcv.Chan = &promela_ast.SelectorExpr{
+					X: chan_name.Name, Sel: &promela_ast.Ident{Name: "closing"},
+					Pos: m.Props.Fileset.Position(expr.Args[0].Pos()),
 				}
+				rcv.Rhs = &promela_ast.Ident{Name: "closed"}
+
+				assert := &promela_ast.AssertStmt{
+					Model: "Close",
+					Pos: m.Props.Fileset.Position(expr.Pos()),
+					Expr: &promela_ast.Ident{Name: "!closed"},
+				}
+				stmts.List = append(stmts.List, rcv, assert)
+			// Call to panic
+			case name.Name == "panic" && len(expr.Args) == 1:
+				stmts.List = append(stmts.List, &promela_ast.CallExpr{
+					Call: m.Props.Fileset.Position(expr.Pos()),
+					Model: "Panic",
+					Fun: &promela_ast.Ident{Name: "assert"},
+					Args: []promela_ast.Expr{
+						&promela_ast.Ident{
+							Name: "20==0",
+						}}})
+			default:
+				call, err1 := m.TranslateCallExpr(expr)
+				err = errors.Join(err, err1)
 
 				if len(call.List) > 0 {
 					addBlock(stmts, call)
 				}
 			}
-
 		case *ast.SelectorExpr:
-			if name.Sel.Name == "Lock" || name.Sel.Name == "Unlock" || name.Sel.Name == "RUnlock" || name.Sel.Name == "RLock" {
+			switch name.Sel.Name {
+			case "Lock", "Unlock", "RUnlock", "RLock":
 				t := m.AstMap[m.Package].TypesInfo.TypeOf(name.X)
 				t = GetElemIfPointer(t)
 
 				switch t := t.(type) {
 				case *types.Named:
-					if t.String() == "sync.Mutex" || t.String() == "sync.RWMutex" {
+					switch t.String() {
+					case "sync.Mutex", "sync.RWMutex":
 						return m.TranslateMutexOp(expr)
 					}
 				}
 			}
 			call, err1 := m.TranslateCallExpr(expr)
-			if err1 != nil {
-				err = err1
-			}
+			err = errors.Join(err, err1)
 			addBlock(stmts, call)
 
 		case *ast.FuncLit:
@@ -739,18 +738,14 @@ func (m *Model) TranslateExpr(expr ast.Expr) (b *promela_ast.BlockStmt, err erro
 			return stmts, err1
 		default:
 			call, err1 := m.TranslateCallExpr(expr)
-			if err1 != nil {
-				err = err1
-			}
+			err = errors.Join(err, err1)
 			addBlock(stmts, call)
 
 		}
 
 	case *ast.UnaryExpr:
 		switch expr.Op {
-
 		case token.ARROW:
-
 			var guard promela_ast.GuardStmt
 
 			guard, err = m.translateRcvStmt(false, expr.X, &promela_ast.BlockStmt{List: []promela_ast.Node{}}, &promela_ast.BlockStmt{List: []promela_ast.Node{}})
@@ -765,9 +760,7 @@ func (m *Model) TranslateExpr(expr ast.Expr) (b *promela_ast.BlockStmt, err erro
 		return m.TranslateExpr(expr.X)
 	case *ast.ParenExpr:
 		call, err1 := m.TranslateExpr(expr.X)
-		if err1 != nil {
-			err = err1
-		}
+		err = errors.Join(err, err1)
 		addBlock(stmts, call)
 	}
 	return stmts, err
@@ -781,15 +774,9 @@ func addBlock(b1 *promela_ast.BlockStmt, b2 *promela_ast.BlockStmt) {
 
 func (m *Model) getChanStruct(expr ast.Expr) *ChanStruct {
 	for e, s := range m.Chans {
-		if IdenticalExpr(e, expr) {
-			return s
-		}
-
-		if IdenticalExpr(e, &ast.Ident{Name: translateIdent(expr).Name}) {
-			return s
-		}
-
-		if isSubsetOfExpr(expr, e) {
+		if IdenticalExpr(e, expr) ||
+			IdenticalExpr(e, &ast.Ident{Name: translateIdent(expr).Name}) ||
+			isSubsetOfExpr(expr, e) {
 			return s
 		}
 	}
@@ -797,10 +784,8 @@ func (m *Model) getChanStruct(expr ast.Expr) *ChanStruct {
 }
 
 func (m *Model) FindDecl(call_expr *ast.CallExpr) (bool, *ast.FuncDecl, string) {
-
-	func_name := ""
-	pack_name := ""
-	is_method_call := false
+	var func_name, pack_name string
+	var is_method_call bool
 	var method_type types.Type
 	// Find the decl of the function
 
@@ -898,11 +883,10 @@ func (m *Model) FindDecl(call_expr *ast.CallExpr) (bool, *ast.FuncDecl, string) 
 
 func (m *Model) containsChan(expr ast.Expr) bool {
 	for e, _ := range m.Chans {
-		if IdenticalExpr(&ast.Ident{Name: translateIdent(e).Name}, &ast.Ident{Name: translateIdent(expr).Name}) {
-			return true
-		}
-
-		if isSubsetOfExpr(expr, e) {
+		if IdenticalExpr(
+			&ast.Ident{Name: translateIdent(e).Name},
+			&ast.Ident{Name: translateIdent(expr).Name}) ||
+			isSubsetOfExpr(expr, e) {
 			return true
 		}
 	}
@@ -920,23 +904,15 @@ func (m *Model) isChan(expr ast.Expr) bool {
 }
 
 func (m *Model) containsWaitgroup(expr ast.Expr) bool {
-
 	switch ptr := expr.(type) {
 	case *ast.UnaryExpr:
 		expr = ptr.X
 	}
 
 	for e, _ := range m.WaitGroups {
-
-		if IdenticalExpr(e, expr) {
-			return true
-		}
-
-		if IdenticalExpr(e, &ast.Ident{Name: translateIdent(expr).Name}) {
-			return true
-		}
-
-		if isSubsetOfExpr(expr, e) {
+		if IdenticalExpr(e, expr) ||
+			IdenticalExpr(e, &ast.Ident{Name: translateIdent(expr).Name}) ||
+			isSubsetOfExpr(expr, e) {
 			return true
 		}
 	}
@@ -944,20 +920,14 @@ func (m *Model) containsWaitgroup(expr ast.Expr) bool {
 }
 
 func (m *Model) isWaitgroup(expr ast.Expr) bool {
-
 	switch ptr := expr.(type) {
 	case *ast.UnaryExpr:
 		expr = ptr.X
 	}
 
 	for e, _ := range m.WaitGroups {
-
-		if IdenticalExpr(e, expr) {
-			return true
-		}
-
-		if IdenticalExpr(&ast.Ident{Name: translateIdent(e).Name}, &ast.Ident{Name: translateIdent(expr).Name}) {
-
+		if IdenticalExpr(e, expr) ||
+			IdenticalExpr(&ast.Ident{Name: translateIdent(e).Name}, &ast.Ident{Name: translateIdent(expr).Name}) {
 			return true
 		}
 	}
@@ -966,16 +936,19 @@ func (m *Model) isWaitgroup(expr ast.Expr) bool {
 
 func (m *Model) CallExists(decl *ast.FuncDecl) (bool, error) {
 	for _, proc := range m.Proctypes {
-		if proc.Decl.Name.Name == decl.Name.Name {
-			if decl.Recv != nil {
-				if proc.Decl.Recv != nil {
-					expr := getElemIfStar(decl.Recv.List[0].Type)
-					expr1 := getElemIfStar(proc.Decl.Recv.List[0].Type)
-					if IdenticalExpr(expr, expr1) {
-						return true, nil
-					}
-				}
-			} else {
+		if proc.Decl.Name.Name != decl.Name.Name {
+			continue
+		}
+
+		if decl.Recv == nil {
+			return true, nil
+		}
+
+		if proc.Decl.Recv != nil &&
+			len(decl.Recv.List) > 0 {
+			expr := getElemIfStar(decl.Recv.List[0].Type)
+			expr1 := getElemIfStar(proc.Decl.Recv.List[0].Type)
+			if IdenticalExpr(expr, expr1) {
 				return true, nil
 			}
 		}
@@ -994,15 +967,12 @@ func getElemIfStar(expr ast.Expr) ast.Expr {
 }
 
 func isRecursive(pack string, block *ast.BlockStmt, ast_map map[string]*packages.Package, call_seen []ast.Expr) bool {
+	var recursive bool
 
-	recursive := false
 	ast.Inspect(block, func(n ast.Node) bool {
 		switch n := n.(type) {
 		case *ast.CallExpr:
-			if IdenticalExprs(call_seen, n.Fun) {
-				recursive = true
-			}
-
+			recursive = recursive || IdenticalExprs(call_seen, n.Fun)
 		}
 		return !recursive
 	})
@@ -1035,40 +1005,32 @@ func IsConst(expr ast.Expr, pack *packages.Package) (found bool, val int) {
 	switch expr := expr.(type) {
 	case *ast.Ident:
 		obj := expr.Obj
-		if obj != nil {
-			if obj.Kind == ast.Con {
-				switch value_spec := obj.Decl.(type) {
-				case *ast.ValueSpec:
-					if value_spec.Values != nil && len(value_spec.Values) > 0 {
-						switch val := value_spec.Values[0].(type) {
-						case *ast.BasicLit:
-							v, err := strconv.Atoi(val.Value)
-							if err == nil {
-								return true, v
-							}
-						case *ast.Ident:
-							return IsConst(val, pack)
-						}
+		if obj != nil && obj.Kind == ast.Con {
+			switch value_spec := obj.Decl.(type) {
+			case *ast.ValueSpec:
+				if value_spec.Values != nil && len(value_spec.Values) > 0 {
+					switch val := value_spec.Values[0].(type) {
+					case *ast.BasicLit:
+						v, err := strconv.Atoi(val.Value)
+						return err == nil, v
+					case *ast.Ident:
+						return IsConst(val, pack)
 					}
 				}
 			}
 		}
 	case *ast.SelectorExpr:
 		obj := expr.Sel.Obj
-		if obj != nil {
-			if obj.Kind == ast.Con {
-				switch value_spec := obj.Decl.(type) {
-				case *ast.ValueSpec:
-					if value_spec.Values != nil && len(value_spec.Values) > 0 {
-						switch val := value_spec.Values[0].(type) {
-						case *ast.BasicLit:
-							v, err := strconv.Atoi(val.Value)
-							if err == nil {
-								return true, v
-							}
-						case *ast.Ident:
-							return IsConst(val, pack)
-						}
+		if obj != nil && obj.Kind == ast.Con {
+			switch value_spec := obj.Decl.(type) {
+			case *ast.ValueSpec:
+				if value_spec.Values != nil && len(value_spec.Values) > 0 {
+					switch val := value_spec.Values[0].(type) {
+					case *ast.BasicLit:
+						v, err := strconv.Atoi(val.Value)
+						return err == nil, v
+					case *ast.Ident:
+						return IsConst(val, pack)
 					}
 				}
 			}
@@ -1076,9 +1038,7 @@ func IsConst(expr ast.Expr, pack *packages.Package) (found bool, val int) {
 	case *ast.BasicLit:
 		if expr.Kind == token.INT {
 			val, err := strconv.Atoi(expr.Value)
-			if err == nil {
-				return true, val
-			}
+			return err == nil, val
 		}
 	}
 	return false, -1
@@ -1103,12 +1063,10 @@ func containsExpr(exprs []ast.Expr, expr ast.Expr) bool {
 				return true
 			}
 		default:
-
 			if IdenticalExpr(e, expr) {
 				return true
 			}
 		}
-
 	}
 
 	return false
@@ -1132,7 +1090,6 @@ func containsReturn(b *promela_ast.BlockStmt) bool {
 }
 
 func (m *Model) ContainsRecFunc(pkg string, name string) bool {
-
 	for _, fun := range m.RecFuncs {
 		if pkg == fun.Pkg && name == fun.Name {
 			return true
@@ -1199,13 +1156,10 @@ func (m *Model) newModel(pack string, fun *ast.FuncDecl) *Model {
 }
 
 func (m *Model) addNewProctypes(new_model *Model) {
-
 	for _, proc := range new_model.Proctypes {
 		contains := false
 		for _, proc2 := range m.Proctypes {
-			if proc.Name.Name == proc2.Name.Name {
-				contains = true
-			}
+			contains = contains || proc.Name.Name == proc2.Name.Name
 		}
 
 		if !contains {
@@ -1215,9 +1169,7 @@ func (m *Model) addNewProctypes(new_model *Model) {
 	for _, def := range new_model.Defines {
 		contains := false
 		for _, def2 := range m.Defines {
-			if def.Name.Name == def2.Name.Name {
-				contains = true
-			}
+			contains = contains || def.Name.Name == def2.Name.Name
 		}
 
 		if !contains {
