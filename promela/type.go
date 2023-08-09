@@ -2,14 +2,13 @@ package promela
 
 import (
 	"go/ast"
-	"go/token"
 	"go/types"
 
 	"github.com/nicolasdilley/gomela/promela/promela_types"
 )
 
 // Converts an expression to a Promela type.
-func (m *Model) ExprToPromelaType(e ast.Expr) (t promela_types.Type, ok bool) {
+func (m *Model) ExprToPromelaType(e ast.Expr) (t promela_types.Types, ok bool) {
 	if m.AstMap == nil {
 		return
 	}
