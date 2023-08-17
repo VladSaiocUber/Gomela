@@ -75,20 +75,24 @@ func (s *GenRcvStmt) Print(num_tabs int) string {
 		return if_stmt.Print(num_tabs)
 
 	} else {
-		body := append([]promela_ast.Node{
-			&promela_ast.RcvStmt{
-				Chan:  s.Chan,
-				Model: "Recv",
-				Rhs:   &promela_ast.Ident{Name: "0"},
-			},
-		}, s.Sync_body.List...)
-
-		rcv_guard := &promela_ast.BlockStmt{
-			List: body,
+		rcv := &promela_ast.RcvStmt{
+			Chan:  s.Chan,
+			Model: "Recv",
+			Rhs:   &promela_ast.Ident{Name: "0"},
+		}
+		var rcv_guard promela_ast.Node = &promela_ast.BlockStmt{
+			List: append([]promela_ast.Node{rcv}, s.Sync_body.List...),
+		}
+		if s.IsCommCase {
+			rcv_guard = &promela_ast.SingleGuardStmt{
+				Cond: rcv,
+				Body: &promela_ast.BlockStmt{
+					List: s.Sync_body.List,
+				},
+			}
 		}
 		return rcv_guard.Print(num_tabs)
 	}
-
 }
 
 func (s *GenRcvStmt) Clone() promela_ast.Node {

@@ -78,18 +78,23 @@ func (s *GenSendStmt) Print(num_tabs int) string {
 		}
 		return if_stmt.Print(num_tabs)
 	} else {
-		body := append([]promela_ast.Node{
-			&promela_ast.SendStmt{
-				Chan:  s.Chan,
-				Model: s.Model,
-				Rhs:   &promela_ast.Ident{Name: "0"},
-			},
-		}, s.Sync_body.List...)
-
-		send_guard := &promela_ast.BlockStmt{
-			List: body,
+		send := &promela_ast.SendStmt{
+			Chan:  s.Chan,
+			Model: s.Model,
+			Rhs:   &promela_ast.Ident{Name: "0"},
+		}
+		var send_guard promela_ast.Node = &promela_ast.BlockStmt{
+			List: append([]promela_ast.Node{}, s.Sync_body.List...),
 		}
 
+		if s.IsCommCase {
+			send_guard = &promela_ast.SingleGuardStmt{
+				Cond: send,
+				Body: &promela_ast.BlockStmt{
+					List: s.Sync_body.List,
+				},
+			}
+		}
 		return send_guard.Print(num_tabs)
 	}
 }
