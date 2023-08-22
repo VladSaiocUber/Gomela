@@ -38,7 +38,7 @@ for l in $(ls $ROOT/$TARGET/** \
   | grep "$ROOTREGEXP" \
   | sed "s+$ROOTREGEXP/$TARGET/++g" \
   | sed "s+:++g" \
-  | grep -vP "(\.|vendor|benchmarks|examples|testdata|/test/)");
+  | grep -vp "(\.|vendor|benchmarks|examples|testdata|/test/)");
 do
   if [ ! -d $ROOT/$TARGET/$l ]; then
     continue

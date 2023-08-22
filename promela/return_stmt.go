@@ -11,23 +11,17 @@ func (m *Model) translateReturnStmt(s *ast.ReturnStmt) (b *promela_ast.BlockStmt
 	b = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
 	defers = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
 	for _, spec := range s.Results {
-
 		expr, err1 := m.TranslateExpr(spec)
-		if err1 != nil {
-			err = err1
-		}
+		err = errors.Join(err, err1)
 
-		if m.containsChan(spec) {
+		switch {
+		case m.containsChan(spec):
 			return b, defers, errors.New(RETURN_CHAN + m.Props.Fileset.Position(spec.Pos()).String())
-		}
-		if m.containsWaitgroup(spec) {
+		case m.containsWaitgroup(spec):
 			return b, defers, errors.New(RETURN_WG + m.Props.Fileset.Position(spec.Pos()).String())
-		}
-		if m.containsMutex(spec) {
+		case m.containsMutex(spec):
 			return b, defers, errors.New(RETURN_MUTEX + m.Props.Fileset.Position(spec.Pos()).String())
-		}
-
-		if m.isStructWithChans(spec) {
+		case m.isStructWithChans(spec):
 			return b, defers, errors.New(RETURN_STRUCT + m.Props.Fileset.Position(spec.Pos()).String())
 		}
 

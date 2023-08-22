@@ -50,7 +50,6 @@ func (m *Model) TranslateGoStmt(s *ast.GoStmt, isMain bool) (b *promela_ast.Bloc
 	}
 
 	if decl != nil {
-
 		// Check if we have not seen it already !
 		for _, f := range m.RecFuncs {
 			if decl.Name.Name == f.Name && m.Package == f.Pkg {
@@ -85,20 +84,22 @@ func (m *Model) TranslateGoStmt(s *ast.GoStmt, isMain bool) (b *promela_ast.Bloc
 			return m.translateCommParams(new_mod, true, new_call_expr, func_name, decl, params, args, isMain)
 
 		}
-	} else { // Could not find the decl of the function
-		// So lets check if it takes a receive as an arg
-		for _, arg := range call_expr.Args {
+		return
+	}
 
-			stmt, err1 := m.TranslateExpr(arg)
-			if err1 != nil {
-				return b, err1
-			}
+	// Could not find the decl of the function
+	// So lets check if it takes a receive as an arg
+	for _, arg := range call_expr.Args {
 
-			for _, e := range stmt.List {
-				switch e := e.(type) {
-				case *promela_ast.RcvStmt:
-					b.List = append(b.List, e)
-				}
+		stmt, err1 := m.TranslateExpr(arg)
+		if err1 != nil {
+			return b, err1
+		}
+
+		for _, e := range stmt.List {
+			switch e := e.(type) {
+			case *promela_ast.RcvStmt:
+				b.List = append(b.List, e)
 			}
 		}
 	}
@@ -163,7 +164,6 @@ func (m *Model) translateCommParams(new_mod *Model, isGo bool, call_expr *ast.Ca
 				}
 				if commPar.Mandatory {
 					def := m.GenerateDefine(commPar) // generate the define statement out of the commpar
-
 					proc.Body.List = append([]promela_ast.Node{&promela_ast.CommParamDeclStmt{Name: &promela_ast.Ident{Name: var_name}, Mandatory: true, Rhs: &promela_ast.Ident{Name: def}, Types: promela_types.Int}}, proc.Body.List...)
 				} else {
 					proc.Body.List = append([]promela_ast.Node{&promela_ast.CommParamDeclStmt{Name: &promela_ast.Ident{Name: var_name}, Mandatory: false, Rhs: &promela_ast.Ident{Name: OPTIONAL_BOUND}, Types: promela_types.Int}}, proc.Body.List...)
@@ -257,7 +257,6 @@ func (m *Model) translateCommParams(new_mod *Model, isGo bool, call_expr *ast.Ca
 						prom_call.Args = append(prom_call.Args, ident)
 					}
 				}
-
 			}
 
 			m.PrintFeature(Feature{

@@ -29,29 +29,25 @@ func (m *Model) translateForStmt(s *ast.ForStmt) (b *promela_ast.BlockStmt, defe
 	}
 
 	cond, err1 := m.TranslateExpr(s.Cond)
+	err = errors.Join(err, err1)
 
-	if err1 != nil {
-		err = err1
-	}
 	addBlock(b, cond) // translating the condition in case there is a <-a
 	init, d1, err1 := m.TranslateBlockStmt(&ast.BlockStmt{List: []ast.Stmt{s.Init}})
-	if err1 != nil {
-		err = err1
-	}
+	err = errors.Join(err, err1)
+
 	addBlock(b, init)
 	addBlock(defers, d1)
 
 	post, d2, err1 := m.TranslateBlockStmt(&ast.BlockStmt{List: []ast.Stmt{s.Post}})
+	err = errors.Join(err, err1)
+
 	addBlock(b, post)
 	addBlock(defers, d2)
 
 	m.For_counter.In_for = true
 
-	if err1 != nil {
-		err = err1
-	}
-
 	stmts, for_label, d3, err1 := m.translateBodyOfForLoop(s.Body)
+	err = errors.Join(err, err1)
 
 	m.For_counter.Y += 1
 	// turns of the printing for the survey on the second translation of the body
@@ -59,9 +55,6 @@ func (m *Model) translateForStmt(s *ast.ForStmt) (b *promela_ast.BlockStmt, defe
 	body2, for_label2, _, _ := m.translateBodyOfForLoop(s.Body)
 	m.GenerateFeatures = true
 
-	if err1 != nil {
-		err = err1
-	}
 	if len(d3.List) > 0 {
 		return b, d3, errors.New(DEFER_IN_FOR + m.Props.Fileset.Position(s.Pos()).String())
 	}
@@ -137,13 +130,11 @@ func (m *Model) translateForStmt(s *ast.ForStmt) (b *promela_ast.BlockStmt, defe
 				b.List = append(b.List, &if_stmt)
 			}
 		}
-
 	}
+
+	m.For_counter.In_for = was_in_for
 	if !was_in_for { // if outer loop set in for to false and reset y
-		m.For_counter.In_for = false
 		m.For_counter.Y = 0
-	} else {
-		m.For_counter.In_for = true
 	}
 
 	m.For_counter.With_go = had_go

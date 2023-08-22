@@ -95,48 +95,40 @@ func IdenticalExpr(expr1 ast.Expr, expr2 ast.Expr) (identical bool) {
 	case *ast.Ident:
 		switch e2 := expr2.(type) {
 		case *ast.Ident:
-			if expr1.Name == e2.Name {
-				identical = true
-			}
-		default:
-			identical = false
+			return expr1.Name == e2.Name
 		}
 	case *ast.SelectorExpr:
 		switch expr2 := expr2.(type) {
 		case *ast.SelectorExpr:
-			if expr1.Sel.Name == expr2.Sel.Name {
-				identical = IdenticalExpr(expr1.X, expr2.X)
-			}
-		default:
-			identical = false
+			return expr1.Sel.Name == expr2.Sel.Name && IdenticalExpr(expr1.X, expr2.X)
 		}
 	case *ast.CallExpr:
 		switch expr2 := expr2.(type) {
 		case *ast.CallExpr:
+			if !IdenticalExpr(expr1.Fun, expr2.Fun) || len(expr1.Args) != len(expr2.Args) {
+				return
+			}
 
-			if IdenticalExpr(expr1.Fun, expr2.Fun) {
-				identical = true
-				for _, a1 := range expr1.Args {
-					for _, a2 := range expr2.Args {
-						if !IdenticalExpr(a1, a2) {
-							identical = false
-						}
-					}
+			for i, a1 := range expr1.Args {
+				a2 := expr2.Args[i]
+				if !IdenticalExpr(a1, a2) {
+					return false
 				}
 			}
+			return true
 		}
 	}
 
-	return identical
+	return
 }
 
 // Return the latest possible identification from an expr
 func FindIdent(e ast.Expr) (ident *ast.Ident) {
 	switch e := e.(type) {
 	case *ast.Ident:
-		ident = e
+		return e
 	case *ast.SelectorExpr:
-		ident = FindIdent(e.X)
+		return FindIdent(e.X)
 	}
 	return ident
 }

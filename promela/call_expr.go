@@ -18,12 +18,10 @@ import (
 func (m *Model) TranslateCallExpr(call_expr *ast.CallExpr) (stmts *promela_ast.BlockStmt, err error) {
 	stmts = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
 
-	// if obj != nil {
 	var func_name string // The corresponding promela function name consisting of package + fun + num of param
 	var pack_name string = m.Package
 
 	// first check if the call is not the launch of a goroutine
-
 	if m.IsGoroutine(call_expr) {
 		var err error
 		var b *promela_ast.BlockStmt
@@ -43,22 +41,16 @@ func (m *Model) TranslateCallExpr(call_expr *ast.CallExpr) (stmts *promela_ast.B
 	}
 
 	// It is not a goroutine call
-
-	switch name := call_expr.Fun.(type) {
+	switch f := call_expr.Fun.(type) {
 	case *ast.Ident:
-		func_name = filepath.Base(pack_name) + name.Name
+		func_name = filepath.Base(pack_name) + f.Name
 	case *ast.SelectorExpr:
 		// Check if its a call a Waitgroup call (Add(x), Done or Wait)
-		func_name = name.Sel.Name
+		func_name, pack_name = f.Sel.Name, getPackName(f).Name
 
-		pack_name = getPackName(name).Name
-
-		if m.isWaitgroup(&ast.Ident{Name: translateIdent(name.X).Name}) {
-			return m.parseWgMethod(call_expr, name)
+		if m.isWaitgroup(&ast.Ident{Name: translateIdent(f.X).Name}) {
+			return m.parseWgMethod(call_expr, f)
 		}
-
-		// Add here ifNotify() -> parseNotifyFunc()
-
 	case *ast.FuncLit:
 		panic("Promela_translator.go : Should not have a funclit here")
 	}
@@ -67,101 +59,94 @@ func (m *Model) TranslateCallExpr(call_expr *ast.CallExpr) (stmts *promela_ast.B
 
 	if err1 != nil {
 		return stmts, err1
-	} else if decl != nil {
-		for _, f := range m.RecFuncs {
-			if decl.Name.Name == f.Name && m.Package == f.Pkg {
-				// check if positions match
-				if decl.Pos() == f.Decl.Pos() {
-					return stmts, errors.New(RECURSIVE_FUNCTION + m.Props.Fileset.Position(decl.Pos()).String())
-				}
-			}
-		}
-		func_name = decl.Name.Name + fmt.Sprint(m.Props.Fileset.Position(decl.Pos()).Line)
-		new_mod := m.newModel(pack_name, decl)
-		new_mod.RecFuncs = append(new_mod.RecFuncs, RecFunc{Pkg: m.Package, Name: decl.Name.Name, Decl: decl})
+	}
 
-		new_mod.CommPars, err1 = new_mod.AnalyseCommParam(pack_name, decl, m.AstMap, false) // recover the commPar
-
-		if err1 != nil {
-
-			return stmts, err1
-		}
-		params, args, hasChan, known, err2 := m.translateParams(new_mod, decl, new_call_expr, false)
-
-		// translate args
-		if err2 != nil {
-			return stmts, err2
-		}
-
-		if hasChan && known {
-			return m.translateCommParams(new_mod, false, new_call_expr, func_name, decl, params, args, false)
-		} else {
-			switch name := new_call_expr.Fun.(type) {
-			case *ast.SelectorExpr:
-				switch ident := name.X.(type) {
-				case *ast.Ident:
-					if ident.Name == "signal" {
-
-						if name.Sel.Name == "Notify" {
-							// Send guard
-							var guard promela_ast.GuardStmt
-
-							guard, err = m.generateGenSendStmt(new_call_expr.Args[0],
-								&promela_ast.BlockStmt{
-									List: []promela_ast.Node{
-										&promela_ast.Ident{Name: "break"},
-									}},
-								&promela_ast.BlockStmt{
-									List: []promela_ast.Node{
-										&promela_ast.Ident{Name: "break"},
-									}})
-
-							// true guard
-							true_guard := &promela_ast.SingleGuardStmt{Cond: &promela_ast.Ident{Name: "true"}, Body: &promela_ast.BlockStmt{List: []promela_ast.Node{&promela_ast.Ident{Name: "break"}}}}
-
-							select_stmt := &promela_ast.SelectStmt{
-								Model:  "Notify",
-								Guards: []promela_ast.GuardStmt{guard, true_guard},
-								Select: m.Props.Fileset.Position(name.Pos())}
-
-							stmts.List = append(stmts.List, select_stmt)
-						}
-					}
-				}
-
-			}
-
-			var stmts1 *promela_ast.BlockStmt
-			stmts1, err = m.ParseFuncArgs(call_expr)
-			if len(stmts1.List) > 0 {
-				addBlock(stmts, stmts1)
-			}
-		}
-	} else {
+	if decl == nil {
 		var stmts1 *promela_ast.BlockStmt
 		stmts1, err = m.ParseFuncArgs(call_expr)
-		if len(stmts1.List) > 0 {
-			addBlock(stmts, stmts1)
+		addBlock(stmts, stmts1)
+		return
+	}
+
+	for _, f := range m.RecFuncs {
+		// check if positions match
+		if decl.Name.Name == f.Name && m.Package == f.Pkg && decl.Pos() == f.Decl.Pos() {
+			return stmts, errors.New(RECURSIVE_FUNCTION + m.Props.Fileset.Position(decl.Pos()).String())
 		}
+	}
+
+	func_name = decl.Name.Name + fmt.Sprint(m.Props.Fileset.Position(decl.Pos()).Line)
+	new_mod := m.newModel(pack_name, decl)
+	new_mod.RecFuncs = append(new_mod.RecFuncs, RecFunc{Pkg: m.Package, Name: decl.Name.Name, Decl: decl})
+
+	new_mod.CommPars, err1 = new_mod.AnalyseCommParam(pack_name, decl, m.AstMap, false) // recover the commPar
+
+	if err1 != nil {
+		return stmts, err1
+	}
+
+	params, args, hasChan, known, err2 := m.translateParams(new_mod, decl, new_call_expr, false)
+
+	// translate args
+	if err2 != nil {
+		return stmts, err2
+	}
+
+	if hasChan && known {
+		return m.translateCommParams(new_mod, false, new_call_expr, func_name, decl, params, args, false)
+	}
+
+	switch name := new_call_expr.Fun.(type) {
+	case *ast.SelectorExpr:
+		switch ident := name.X.(type) {
+		case *ast.Ident:
+			if ident.Name != "signal" || name.Sel.Name == "Notify" {
+				break
+			}
+
+			// Send guard
+			var guard promela_ast.GuardStmt
+
+			guard, err = m.generateGenSendStmt(new_call_expr.Args[0],
+				&promela_ast.BlockStmt{
+					List: []promela_ast.Node{
+						&promela_ast.Ident{Name: "break"},
+					}},
+				&promela_ast.BlockStmt{
+					List: []promela_ast.Node{
+						&promela_ast.Ident{Name: "break"},
+					}})
+
+			// true guard
+			true_guard := &promela_ast.SingleGuardStmt{Cond: &promela_ast.Ident{Name: "true"}, Body: &promela_ast.BlockStmt{List: []promela_ast.Node{&promela_ast.Ident{Name: "break"}}}}
+
+			select_stmt := &promela_ast.SelectStmt{
+				Model:  "Notify",
+				Guards: []promela_ast.GuardStmt{guard, true_guard},
+				Select: m.Props.Fileset.Position(name.Pos())}
+
+			stmts.List = append(stmts.List, select_stmt)
+		}
+	}
+
+	var stmts1 *promela_ast.BlockStmt
+	stmts1, err = m.ParseFuncArgs(call_expr)
+	if len(stmts1.List) > 0 {
+		addBlock(stmts, stmts1)
 	}
 
 	return stmts, err
 }
 
-func (m *Model) ParseFuncArgs(call_expr *ast.CallExpr) (*promela_ast.BlockStmt, error) {
-
-	stmts := &promela_ast.BlockStmt{List: []promela_ast.Node{}}
+func (m *Model) ParseFuncArgs(call_expr *ast.CallExpr) (stmts *promela_ast.BlockStmt, err error) {
+	stmts = &promela_ast.BlockStmt{}
 	for _, arg := range call_expr.Args {
-
-		expr, e := m.TranslateExpr(arg)
-
-		if e != nil {
-			return stmts, e
-		}
-		stmts.List = append(stmts.List, expr.List...)
+		expr, err1 := m.TranslateExpr(arg)
+		err = errors.Join(err, err1)
+		addBlock(stmts, expr)
 	}
 
-	return stmts, nil
+	return stmts, err
 }
 
 // take an ident or a selector expr and return the name of the ident or the X of selectorExpr

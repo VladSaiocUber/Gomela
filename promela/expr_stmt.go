@@ -11,9 +11,7 @@ func (m *Model) translateExprStmt(s *ast.ExprStmt) (b *promela_ast.BlockStmt, de
 	defers = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
 
 	expr, err1 := m.TranslateExpr(s.X)
-
 	if err1 != nil {
-
 		return b, defers, err1
 	}
 	addBlock(b, expr)

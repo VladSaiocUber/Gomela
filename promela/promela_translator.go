@@ -47,30 +47,32 @@ type GlobalProps struct {
 type Model struct {
 	Props *GlobalProps
 
-	Result_fodler        string // the name of the folder where the model need to ne printed
-	Project_name         string // the full name of  project (eg. "nicolasdilley/Gomela")
-	Package              string // the name of the package
-	Name                 string // the name of the file that will be generated. (Composed of "pack_functionName")
-	Commit               string // the commit of the project
-	RecFuncs             []RecFunc
-	SpawningFuncs        []*SpawningFunc
-	Proctypes            []*promela_ast.Proctype       // the processes representing the functions of the model
-	Inlines              []*promela_ast.Inline         // the inlines function that represent the commpar args that are function calls
-	Fun                  *ast.FuncDecl                 // the function being modelled
-	Chans                map[ast.Expr]*ChanStruct      // the promela chan used in the module mapped to their go expr
-	WaitGroups           map[ast.Expr]*WaitGroupStruct // the promela chan used in the module mapped to their go expr
-	Mutexes              []ast.Expr                    // The promela mutex declaration
-	Init                 *promela_ast.InitDef          // The proctype consisting of the "main" function of the source program
-	Global_vars          []promela_ast.Node            // the global variable used in the ltl properties
-	Defines              	[]promela_ast.DefineStmt      // the channel bounds
-	CommPars             []*CommPar                    // the communications paramer
-	Features             []Feature                     // The features for the survey
-	ClosedVars           map[*ChanStruct][]ast.Expr    // The variable that are used to test if a channel is closed when receiving (i.e ok in r,ok := >-ch )
-	process_counter      int                           // to give unique name to Promela processes
-	func_counter         int                           // to give unique name to inline func call
-	For_counter          *ForCounter                   // Used to translate the for loop to break out properly out of them
-	Counter              int                           // used to differentiate call expr channels
-	AstMap               map[string]*packages.Package  // the map used to find the type of the channels
+	Result_fodler string // the name of the folder where the model need to ne printed
+	Project_name  string // the full name of  project (eg. "nicolasdilley/Gomela")
+	Package       string // the name of the package
+	Name          string // the name of the file that will be generated. (Composed of "pack_functionName")
+	Commit        string // the commit of the project
+
+	RecFuncs      []RecFunc
+	SpawningFuncs []*SpawningFunc
+	Defines       []promela_ast.DefineStmt      // the channel bounds
+	Proctypes     []*promela_ast.Proctype       // the processes representing the functions of the model
+	Inlines       []*promela_ast.Inline         // the inlines function that represent the commpar args that are function calls
+	Fun           *ast.FuncDecl                 // the function being modelled
+	Chans         map[ast.Expr]*ChanStruct      // the promela chan used in the module mapped to their go expr
+	WaitGroups    map[ast.Expr]*WaitGroupStruct // the promela chan used in the module mapped to their go expr
+	Mutexes       []ast.Expr                    // The promela mutex declaration
+	Init          *promela_ast.InitDef          // The proctype consisting of the "main" function of the source program
+	Global_vars   []promela_ast.Node            // the global variable used in the ltl properties
+	CommPars      []*CommPar                    // the communications paramer
+	Features      []Feature                     // The features for the survey
+	ClosedVars    map[*ChanStruct][]ast.Expr    // The variable that are used to test if a channel is closed when receiving (i.e ok in r,ok := >-ch )
+
+	For_counter          *ForCounter                  // Used to translate the for loop to break out properly out of them
+	process_counter      int                          // to give unique name to Promela processes
+	func_counter         int                          // to give unique name to inline func call
+	Counter              int                          // used to differentiate call expr channels
+	AstMap               map[string]*packages.Package // the map used to find the type of the channels
 	Projects_folder      string
 	GenerateFeatures     bool // should the model print features ?
 	Current_return_label string
@@ -642,131 +644,138 @@ func containsBreak(b *promela_ast.BlockStmt) bool {
 	return contains
 }
 
-func (m *Model) TranslateExpr(expr ast.Expr) (b *promela_ast.BlockStmt, err error) {
-	stmts := &promela_ast.BlockStmt{List: []promela_ast.Node{}}
+func (m *Model) TranslateExpr(expr ast.Expr) (stmts *promela_ast.BlockStmt, err error) {
+	stmts = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
 
-	switch expr := expr.(type) {
-	case *ast.CompositeLit:
+	ast.Inspect(expr, func(n ast.Node) bool {
+		switch expr := n.(type) {
+		case *ast.CallExpr, *ast.FuncLit:
+			return false
+		case *ast.UnaryExpr:
+			switch expr.Op {
+			case token.ARROW:
+				var guard promela_ast.GuardStmt
+				guard, err = m.translateRcvStmt(false, expr.X, &promela_ast.BlockStmt{List: []promela_ast.Node{}}, &promela_ast.BlockStmt{List: []promela_ast.Node{}})
+				stmts.List = append(stmts.List, guard)
+			}
+		}
+		return true
+	})
 
-	case *ast.BinaryExpr:
-		e1, err1 := m.TranslateExpr(expr.X)
-		err = errors.Join(err, err1)
-		addBlock(stmts, e1)
+	var translateExpr func(ast.Expr) (*promela_ast.BlockStmt, error)
+	translateExpr = func(e ast.Expr) (b *promela_ast.BlockStmt, err error) {
+		switch expr := expr.(type) {
+		case *ast.BinaryExpr:
+			e1, err1 := translateExpr(expr.X)
+			addBlock(stmts, e1)
+			e2, err2 := translateExpr(expr.Y)
+			addBlock(stmts, e2)
+			return stmts, errors.Join(err, err1, err2)
+		case *ast.CallExpr:
+			switch name := expr.Fun.(type) {
+			case *ast.Ident:
+				switch {
+				// Closing a channel
+				case name.Name == "close" && len(expr.Args) == 1:
+					rcv := &promela_ast.RcvStmt{Model: "Close", Rcv: m.Props.Fileset.Position(name.Pos())}
 
-		e2, err2 := m.TranslateExpr(expr.Y)
-		err = errors.Join(err, err2)
-		addBlock(stmts, e2)
+					if !m.containsChan(expr.Args[0]) {
+						return stmts, errors.New(UNKNOWN_CHAN_CLOSE + m.Props.Fileset.Position(expr.Pos()).String())
+					}
+					m.Props.ContainsClose = true
+					chan_name := m.getChanStruct(expr.Args[0])
 
-	case *ast.CallExpr:
-		switch name := expr.Fun.(type) {
-		case *ast.Ident:
-			switch {
-			// Closing a channel
-			case name.Name == "close" && len(expr.Args) == 1:
-				rcv := &promela_ast.RcvStmt{Model: "Close", Rcv: m.Props.Fileset.Position(name.Pos())}
+					rcv.Chan = &promela_ast.SelectorExpr{
+						X: chan_name.Name, Sel: &promela_ast.Ident{Name: "closing"},
+						Pos: m.Props.Fileset.Position(expr.Args[0].Pos()),
+					}
+					rcv.Rhs = &promela_ast.Ident{Name: "closed"}
 
-				if !m.containsChan(expr.Args[0]) {
-					return stmts, errors.New(UNKNOWN_CHAN_CLOSE + m.Props.Fileset.Position(expr.Pos()).String())
+					assert := &promela_ast.AssertStmt{
+						Model: "Close",
+						Pos:   m.Props.Fileset.Position(expr.Pos()),
+						Expr:  &promela_ast.Ident{Name: "!closed"},
+					}
+					stmts.List = append(stmts.List, rcv, assert)
+					return
+				// Call to panic
+				case name.Name == "panic" && len(expr.Args) == 1:
+					e, err1 := translateExpr(expr.Args[0])
+					err = errors.Join(err, err1)
+					addBlock(stmts, e)
+					stmts.List = append(stmts.List, &promela_ast.CallExpr{
+						Call:  m.Props.Fileset.Position(expr.Pos()),
+						Model: "Panic",
+						Fun:   &promela_ast.Ident{Name: "assert"},
+						Args: []promela_ast.Node{
+							&promela_ast.Ident{
+								Name: "20==0",
+							}}})
+					return
+				default:
+					call, err1 := m.TranslateCallExpr(expr)
+					err = errors.Join(err, err1)
+					addBlock(stmts, call)
+					return
 				}
-				m.Props.ContainsClose = true
-				chan_name := m.getChanStruct(expr.Args[0])
+			case *ast.SelectorExpr:
+				switch name.Sel.Name {
+				case "Lock", "Unlock", "RUnlock", "RLock":
+					t := m.AstMap[m.Package].TypesInfo.TypeOf(name.X)
+					t = GetElemIfPointer(t)
 
-				rcv.Chan = &promela_ast.SelectorExpr{
-					X: chan_name.Name, Sel: &promela_ast.Ident{Name: "closing"},
-					Pos: m.Props.Fileset.Position(expr.Args[0].Pos()),
+					switch t := t.(type) {
+					case *types.Named:
+						switch t.String() {
+						case "sync.Mutex", "sync.RWMutex":
+							return m.TranslateMutexOp(expr)
+						}
+					}
 				}
-				rcv.Rhs = &promela_ast.Ident{Name: "closed"}
-
-				assert := &promela_ast.AssertStmt{
-					Model: "Close",
-					Pos: m.Props.Fileset.Position(expr.Pos()),
-					Expr: &promela_ast.Ident{Name: "!closed"},
-				}
-				stmts.List = append(stmts.List, rcv, assert)
-			// Call to panic
-			case name.Name == "panic" && len(expr.Args) == 1:
-				stmts.List = append(stmts.List, &promela_ast.CallExpr{
-					Call: m.Props.Fileset.Position(expr.Pos()),
-					Model: "Panic",
-					Fun: &promela_ast.Ident{Name: "assert"},
-					Args: []promela_ast.Node{
-						&promela_ast.Ident{
-							Name: "20==0",
-						}}})
-			default:
 				call, err1 := m.TranslateCallExpr(expr)
 				err = errors.Join(err, err1)
+				addBlock(stmts, call)
+				return
+			case *ast.FuncLit:
+				new_block := name.Body
+				for x, field := range name.Type.Params.List {
+					for y, name := range field.Names {
 
-				if len(call.List) > 0 {
-					addBlock(stmts, call)
-				}
-			}
-		case *ast.SelectorExpr:
-			switch name.Sel.Name {
-			case "Lock", "Unlock", "RUnlock", "RLock":
-				t := m.AstMap[m.Package].TypesInfo.TypeOf(name.X)
-				t = GetElemIfPointer(t)
-
-				switch t := t.(type) {
-				case *types.Named:
-					switch t.String() {
-					case "sync.Mutex", "sync.RWMutex":
-						return m.TranslateMutexOp(expr)
+						arg := expr.Args[x+y]
+						switch expr := expr.Args[x+y].(type) {
+						case *ast.UnaryExpr:
+							arg = expr.X
+						}
+						new_block = RenameBlockStmt(new_block, []ast.Expr{name}, arg)
 					}
 				}
+				stmts, d1, err1 := m.TranslateBlockStmt(new_block)
+
+				stmts.List = append(stmts.List, d1.List...)
+				return stmts, err1
+			default:
+				return m.TranslateCallExpr(expr)
 			}
-			call, err1 := m.TranslateCallExpr(expr)
-			err = errors.Join(err, err1)
-			addBlock(stmts, call)
-
-		case *ast.FuncLit:
-			new_block := name.Body
-			for x, field := range name.Type.Params.List {
-				for y, name := range field.Names {
-
-					arg := expr.Args[x+y]
-					switch expr := expr.Args[x+y].(type) {
-					case *ast.UnaryExpr:
-						arg = expr.X
-					}
-					new_block = RenameBlockStmt(new_block, []ast.Expr{name}, arg)
-				}
+		case *ast.UnaryExpr:
+			if expr.Op != token.ARROW {
+				// If the operation is not a receive operation, process its underlying contents.
+				return translateExpr(expr.X)
 			}
-			stmts, d1, err1 := m.TranslateBlockStmt(new_block)
-
-			stmts.List = append(stmts.List, d1.List...)
-			return stmts, err1
-		default:
-			call, err1 := m.TranslateCallExpr(expr)
-			err = errors.Join(err, err1)
-			addBlock(stmts, call)
-
+		case *ast.TypeAssertExpr:
+			return translateExpr(expr.X)
+		case *ast.ParenExpr:
+			return translateExpr(expr.X)
 		}
 
-	case *ast.UnaryExpr:
-		switch expr.Op {
-		case token.ARROW:
-			var guard promela_ast.GuardStmt
-
-			guard, err = m.translateRcvStmt(false, expr.X, &promela_ast.BlockStmt{List: []promela_ast.Node{}}, &promela_ast.BlockStmt{List: []promela_ast.Node{}})
-
-			stmts.List = append(stmts.List, guard)
-
-		default:
-			return m.TranslateExpr(expr.X)
-		}
-
-	case *ast.TypeAssertExpr:
-		return m.TranslateExpr(expr.X)
-	case *ast.ParenExpr:
-		call, err1 := m.TranslateExpr(expr.X)
-		err = errors.Join(err, err1)
-		addBlock(stmts, call)
+		return
 	}
-	return stmts, err
+	return translateExpr(expr)
 }
 
 func addBlock(b1 *promela_ast.BlockStmt, b2 *promela_ast.BlockStmt) {
+	if b2 == nil {
+		return
+	}
 	for _, b := range b2.List {
 		b1.List = append(b1.List, b)
 	}

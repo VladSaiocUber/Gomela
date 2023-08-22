@@ -43,14 +43,8 @@ func (m *Model) translateAssignStmt(s *ast.AssignStmt) (b *promela_ast.BlockStmt
 				}
 			default:
 				expr, err1 := m.TranslateExpr(spec.X)
-
-				if err1 != nil {
-					return expr, err1
-				}
-
-				if len(expr.List) > 0 {
-					addBlock(b, expr)
-				}
+				err = errors.Join(err, err1)
+				addBlock(b, expr)
 			}
 		default:
 			expr, err1 := m.TranslateExpr(spec)
@@ -71,22 +65,22 @@ func (m *Model) translateAssignStmt(s *ast.AssignStmt) (b *promela_ast.BlockStmt
 			rhs, comm_pars := m.TranslateKnownExpr(spec)
 			stmt := []promela_ast.Node{
 				&promela_ast.AssignStmt{Lhs: lhs, Rhs: rhs}}
-				// If the assignment is a definition, swap the assignment statement
-				// with a declaration, and assign it the type of the right-hand side
-				// expression.
-				if s.Tok == token.DEFINE {
-					ty, ok := m.ExprToPromelaType(spec)
-					if ok {
-						stmt[0] = &promela_ast.DeclStmt{
-							Decl: m.Props.Fileset.Position(spec.Pos()),
-							Name: lhs.(*promela_ast.Ident),
-							Types: ty,
-							Rhs: rhs,
-						}
+			// If the assignment is a definition, swap the assignment statement
+			// with a declaration, and assign it the type of the right-hand side
+			// expression.
+			if s.Tok == token.DEFINE {
+				ty, ok := m.ExprToPromelaType(spec)
+				if ok {
+					stmt[0] = &promela_ast.DeclStmt{
+						Decl:  m.Props.Fileset.Position(spec.Pos()),
+						Name:  lhs.(*promela_ast.Ident),
+						Types: ty,
+						Rhs:   rhs,
 					}
 				}
+			}
 
-				// flag the lhs as an alias so that its not turned into an unknown comm param
+			// flag the lhs as an alias so that its not turned into an unknown comm param
 			m.FlagCommParamAsAlias(s.Lhs[i], comm_pars)
 			addBlock(b, &promela_ast.BlockStmt{List: stmt})
 		}

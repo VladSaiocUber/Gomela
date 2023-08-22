@@ -70,10 +70,7 @@ func (m *Model) translateDeclStmt(stmt *ast.DeclStmt) (b *promela_ast.BlockStmt,
 				for _, val := range spec.Values {
 					expr, err1 := m.TranslateExpr(val)
 					err = errors.Join(err, err1)
-
-					if len(expr.List) > 0 {
-						addBlock(b, expr)
-					}
+					addBlock(b, expr)
 				}
 			}
 		}

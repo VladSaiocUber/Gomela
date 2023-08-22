@@ -14,51 +14,34 @@ func (m *Model) translateRcvStmt(
 	body *promela_ast.BlockStmt,
 	body2 *promela_ast.BlockStmt) (promela_ast.GuardStmt, error) {
 
-	var guard promela_ast.GuardStmt
-
-	var err error
-
 	if m.containsChan(e) {
 		chan_name := m.getChanStruct(e)
-
-		guard = &GenRcvStmt{
+		return &GenRcvStmt{
 			IsCommCase: commCase,
 			Pos:        m.Props.Fileset.Position(e.Pos()),
 			Chan:       chan_name.Name,
 			M:          m.Props,
 			Sync_body:  body,
 			Async_body: body2,
-		}
-
-		return guard, err
-	} else {
-
-		if m.IsTimeAfter(e) {
-			guard = &promela_ast.SingleGuardStmt{
-				Cond: &promela_ast.Ident{Name: "true"},
-				Body: body}
-		} else {
-			err = errors.New(UNKNOWN_RCV + m.Props.Fileset.Position(e.Pos()).String())
-		}
+		}, nil
 	}
 
-	return guard, err
+	if !m.IsTimeAfter(e) {
+		return nil, errors.New(UNKNOWN_RCV + m.Props.Fileset.Position(e.Pos()).String())
+	}
+
+	return &promela_ast.SingleGuardStmt{
+		Cond: &promela_ast.Ident{Name: "true"},
+		Body: body}, nil
 }
 
 func (m *Model) IsTimeAfter(e ast.Expr) bool {
-
 	switch call := e.(type) {
 	case *ast.SelectorExpr:
-		// Checking if timeout.C channel and change it to a true branche
-		if t := m.AstMap[m.Package].TypesInfo.TypeOf(call.X); t != nil {
-			t = GetElemIfPointer(t)
-			switch t := t.(type) {
-			case *types.Named:
-				if t.String() == "time.Ticker" || t.String() == "time.Timer" {
-
-					return true
-				}
-			}
+		// Checking if timeout.C channel and change it to a true branch
+		switch t := GetElemIfPointer(m.AstMap[m.Package].TypesInfo.TypeOf(call.X)).(type) {
+		case *types.Named:
+			return t.String() == "time.Ticker" || t.String() == "time.Timer"
 		}
 	case *ast.CallExpr:
 		switch sel := call.Fun.(type) {
@@ -70,33 +53,22 @@ func (m *Model) IsTimeAfter(e ast.Expr) bool {
 				}
 			}
 
-			if sel.Sel.Name == "Done" {
-				// look if the type is context.Context
-				isContext := false
-				switch ident := sel.X.(type) {
-				case *ast.Ident:
-					if ident.Name == "ctx" {
-						isContext = true
-					}
+			if sel.Sel.Name != "Done" {
+				break
+			}
+			// look if the type is context.Context
+			switch ident := sel.X.(type) {
+			case *ast.Ident:
+				if ident.Name == "ctx" {
+					return true
 				}
-
-				t := m.AstMap[m.Package].TypesInfo.TypeOf(sel.X)
-
-				if t != nil {
-					switch u := t.(type) {
-					case *types.Pointer:
-						t = u.Elem()
-					}
-					switch t.(type) {
-					case *types.Named:
-						if t.String() == "context.Context" {
-							isContext = true
-						}
-					}
-				}
-				return isContext
 			}
 
+			switch t := GetElemIfPointer(m.AstMap[m.Package].TypesInfo.TypeOf(sel.X)).(type) {
+
+			case *types.Named:
+				return t.String() == "context.Context"
+			}
 		}
 	}
 
