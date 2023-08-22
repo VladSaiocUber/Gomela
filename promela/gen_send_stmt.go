@@ -84,7 +84,7 @@ func (s *GenSendStmt) Print(num_tabs int) string {
 			Rhs:   &promela_ast.Ident{Name: "0"},
 		}
 		var send_guard promela_ast.Node = &promela_ast.BlockStmt{
-			List: append([]promela_ast.Node{}, s.Sync_body.List...),
+			List: append([]promela_ast.Node{send}, s.Sync_body.List...),
 		}
 
 		if s.IsCommCase {
