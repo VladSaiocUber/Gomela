@@ -50,7 +50,7 @@ func (m *Model) translateAssignStmt(s *ast.AssignStmt) (b *promela_ast.BlockStmt
 			expr, err1 := m.TranslateExpr(spec)
 			err = errors.Join(err, err1)
 
-			if len(expr.List) > 0 {
+			if expr != nil && len(expr.List) > 0 {
 				addBlock(b, expr)
 				continue
 			}
