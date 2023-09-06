@@ -44,6 +44,7 @@ type VerificationInfo struct {
 	spin_output                         string
 	all_mandatory                       bool
 	needs_project_folder                bool
+	ginger_mode 						bool
 	// single_file    *string
 }
 
@@ -75,6 +76,7 @@ func main() {
 	flag.StringVar(&PROJECTS_FOLDER, "p", PROJECTS_FOLDER, "a folder that contains all the projects.")
 	flag.BoolVar(&ver.all_mandatory, "am", false, "turns all optional parameters into mandatory parameters.")
 	flag.BoolVar(&ver.needs_project_folder, "needs-projects", false, "If set, then Gomela will capture projects from a given folder.")
+	flag.BoolVar(&ver.ginger_mode, "ginger", false, "If set, Gomela will run in Ginger mode and skip standard Gomela verification.")
 
 	flag.Parse()
 
