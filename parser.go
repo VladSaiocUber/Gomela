@@ -7,6 +7,7 @@ import (
 	"go/types"
 	"log"
 	"os"
+	"runtime/debug"
 
 	"github.com/nicolasdilley/gomela/promela"
 	"github.com/nicolasdilley/gomela/promela/promela_ast"
@@ -155,7 +156,7 @@ func GenerateAst(dir string, package_names []string, dir_name string, gopath str
 		toPrint := dir_name + ",Could not parse project"
 
 		if err != nil {
-			toPrint += ", " + err.Error()
+			toPrint += ", " + err.Error() + string(debug.Stack())
 		}
 
 		toPrint += "\n"
