@@ -36,6 +36,9 @@ func (b *BlockStmt) Print(num_tabs int) (stmt string) {
 }
 
 func (s *BlockStmt) Clone() Node {
+	if s == nil {
+		return s
+	}
 
 	s1 := &BlockStmt{Block: s.Block, List: []Node{}}
 

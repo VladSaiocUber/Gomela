@@ -646,6 +646,9 @@ func containsBreak(b *promela_ast.BlockStmt) bool {
 
 func (m *Model) TranslateExpr(expr ast.Expr) (stmts *promela_ast.BlockStmt, err error) {
 	stmts = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
+	if expr == nil {
+		return
+	}
 
 	ast.Inspect(expr, func(n ast.Node) bool {
 		switch expr := n.(type) {
@@ -662,15 +665,12 @@ func (m *Model) TranslateExpr(expr ast.Expr) (stmts *promela_ast.BlockStmt, err 
 		return true
 	})
 
-	var translateExpr func(ast.Expr) (*promela_ast.BlockStmt, error)
-	translateExpr = func(e ast.Expr) (b *promela_ast.BlockStmt, err error) {
-		switch expr := expr.(type) {
+	var translateExpr func(ast.Expr)
+	translateExpr = func(e ast.Expr) {
+		switch expr := e.(type) {
 		case *ast.BinaryExpr:
-			e1, err1 := translateExpr(expr.X)
-			addBlock(stmts, e1)
-			e2, err2 := translateExpr(expr.Y)
-			addBlock(stmts, e2)
-			return stmts, errors.Join(err, err1, err2)
+			translateExpr(expr.X)
+			translateExpr(expr.Y)
 		case *ast.CallExpr:
 			switch name := expr.Fun.(type) {
 			case *ast.Ident:
@@ -680,7 +680,8 @@ func (m *Model) TranslateExpr(expr ast.Expr) (stmts *promela_ast.BlockStmt, err 
 					rcv := &promela_ast.RcvStmt{Model: "Close", Rcv: m.Props.Fileset.Position(name.Pos())}
 
 					if !m.containsChan(expr.Args[0]) {
-						return stmts, errors.New(UNKNOWN_CHAN_CLOSE + m.Props.Fileset.Position(expr.Pos()).String())
+						err = errors.Join(err, errors.New(UNKNOWN_CHAN_CLOSE+m.Props.Fileset.Position(expr.Pos()).String()))
+						return
 					}
 					m.Props.ContainsClose = true
 					chan_name := m.getChanStruct(expr.Args[0])
@@ -697,12 +698,9 @@ func (m *Model) TranslateExpr(expr ast.Expr) (stmts *promela_ast.BlockStmt, err 
 						Expr:  &promela_ast.Ident{Name: "!closed"},
 					}
 					stmts.List = append(stmts.List, rcv, assert)
-					return
 				// Call to panic
 				case name.Name == "panic" && len(expr.Args) == 1:
-					e, err1 := translateExpr(expr.Args[0])
-					err = errors.Join(err, err1)
-					addBlock(stmts, e)
+					translateExpr(expr.Args[0])
 					stmts.List = append(stmts.List, &promela_ast.CallExpr{
 						Call:  m.Props.Fileset.Position(expr.Pos()),
 						Model: "Panic",
@@ -711,12 +709,10 @@ func (m *Model) TranslateExpr(expr ast.Expr) (stmts *promela_ast.BlockStmt, err 
 							&promela_ast.Ident{
 								Name: "20==0",
 							}}})
-					return
 				default:
 					call, err1 := m.TranslateCallExpr(expr)
 					err = errors.Join(err, err1)
 					addBlock(stmts, call)
-					return
 				}
 			case *ast.SelectorExpr:
 				switch name.Sel.Name {
@@ -728,19 +724,20 @@ func (m *Model) TranslateExpr(expr ast.Expr) (stmts *promela_ast.BlockStmt, err 
 					case *types.Named:
 						switch t.String() {
 						case "sync.Mutex", "sync.RWMutex":
-							return m.TranslateMutexOp(expr)
+							call, err1 := m.TranslateMutexOp(expr)
+							err = errors.Join(err, err1)
+							addBlock(stmts, call)
+							return
 						}
 					}
 				}
 				call, err1 := m.TranslateCallExpr(expr)
 				err = errors.Join(err, err1)
 				addBlock(stmts, call)
-				return
 			case *ast.FuncLit:
 				new_block := name.Body
 				for x, field := range name.Type.Params.List {
 					for y, name := range field.Names {
-
 						arg := expr.Args[x+y]
 						switch expr := expr.Args[x+y].(type) {
 						case *ast.UnaryExpr:
@@ -749,31 +746,32 @@ func (m *Model) TranslateExpr(expr ast.Expr) (stmts *promela_ast.BlockStmt, err 
 						new_block = RenameBlockStmt(new_block, []ast.Expr{name}, arg)
 					}
 				}
-				stmts, d1, err1 := m.TranslateBlockStmt(new_block)
-
-				stmts.List = append(stmts.List, d1.List...)
-				return stmts, err1
+				stmts2, d1, err1 := m.TranslateBlockStmt(new_block)
+				err = errors.Join(err, err1)
+				addBlock(stmts, stmts2)
+				addBlock(stmts, d1)
 			default:
-				return m.TranslateCallExpr(expr)
+				e, err1 := m.TranslateCallExpr(expr)
+				err = errors.Join(err, err1)
+				addBlock(stmts, e)
 			}
 		case *ast.UnaryExpr:
 			if expr.Op != token.ARROW {
 				// If the operation is not a receive operation, process its underlying contents.
-				return translateExpr(expr.X)
+				translateExpr(expr.X)
 			}
 		case *ast.TypeAssertExpr:
-			return translateExpr(expr.X)
+			translateExpr(expr.X)
 		case *ast.ParenExpr:
-			return translateExpr(expr.X)
+			translateExpr(expr.X)
 		}
-
-		return
 	}
-	return translateExpr(expr)
+	translateExpr(expr)
+	return
 }
 
 func addBlock(b1 *promela_ast.BlockStmt, b2 *promela_ast.BlockStmt) {
-	if b2 == nil {
+	if b1 == nil || b2 == nil {
 		return
 	}
 	for _, b := range b2.List {
