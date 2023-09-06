@@ -29,25 +29,53 @@ if [ -d $ROOT/$TARGET ]; then
   # echo $HASGO
   if [ ! -z "$HASGO" ]; then
     echo "Now processing: $ROOT/$TARGET"
-    ./gomela -am -result_folder "$RESULTS/$TARGET" fs "$ROOT/$TARGET"
+    # ./gomela -am -ginger -result_folder "$RESULTS/$TARGET" fs "$ROOT/$TARGET"
   fi
 fi
 
+case $(uname) in
+  "Linux")
+    P="P"
+    ;;
+  "Darwin")
+    P="p"
+    ;;
+esac
 
-for l in $(ls $ROOT/$TARGET/** \
-  | grep "$ROOTREGEXP" \
-  | sed "s+$ROOTREGEXP/$TARGET/++g" \
-  | sed "s+:++g" \
-  | grep -vp "(\.|vendor|benchmarks|examples|testdata|/test/)");
-do
-  if [ ! -d $ROOT/$TARGET/$l ]; then
-    continue
+traverseDir () {
+  echo "Now processing: $ROOT/$1"
+  if [ ! -d $ROOT/$1 ]; then
+    echo "$ROOT/$1 is not a directory."
+    return
   fi
-  HASGO=$(ls $ROOT/$TARGET/$l | grep ".go")
+  HASGO=$(ls $ROOT/$1 | grep ".go")
   # echo $HASGO
   if [ -z "$HASGO" ]; then
-    continue
+    for l in $(ls $ROOT/$1 \
+      | sed "s+$ROOTREGEXP/$1/++g" \
+      | sed "s+:++g" \
+      | grep -v$P "(\.|vendor|benchmarks|examples|testdata|/test/)");
+    do
+      traverseDir $1/$l
+    done
+    return
   fi
-  echo "Now processing: $ROOT/$TARGET/$l"
-  ./gomela -am -result_folder "$RESULTS/$TARGET/$l" fs "$ROOT/$TARGET/$l"
+  ./gomela -am -ginger -result_folder "$RESULTS/$1" fs "$ROOT/$1"
+
+  for l in $(ls $ROOT/$1 \
+    | sed "s+$ROOTREGEXP/$1/++g" \
+    | sed "s+:++g" \
+    | grep -v$P "(\.|vendor|benchmarks|examples|testdata|/test/)");
+  do
+    traverseDir $1/$l
+  done
+}
+
+for l in $(ls $ROOT/$TARGET \
+  | sed "s+$ROOTREGEXP/$TARGET/++g" \
+  | sed "s+:++g" \
+  | grep -v$P "(\.|vendor|benchmarks|examples|testdata|/test/)");
+do
+  echo $l
+  traverseDir $TARGET/$l
 done
