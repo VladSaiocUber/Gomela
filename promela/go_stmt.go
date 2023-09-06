@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"sort"
 	"strconv"
 	"strings"
@@ -19,7 +20,7 @@ import (
 func (m *Model) TranslateGoStmt(s *ast.GoStmt, isMain bool) (b *promela_ast.BlockStmt, err error) {
 	defer func() {
 		if pnc := recover(); pnc != nil {
-			err = fmt.Errorf("%s", pnc)
+			err = fmt.Errorf("%s\nTrace:%s", pnc, debug.Stack())
 		}
 	}()
 
