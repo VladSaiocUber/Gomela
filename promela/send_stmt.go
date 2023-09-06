@@ -28,7 +28,7 @@ func (m *Model) translateSendStmt(s *ast.SendStmt) (b *promela_ast.BlockStmt, er
 }
 
 func (m *Model) generateGenSendStmt(e ast.Expr, body *promela_ast.BlockStmt, body2 *promela_ast.BlockStmt) (g promela_ast.GuardStmt, err error) {
-	if m.containsChan(e) {
+	if !m.containsChan(e) {
 		err = errors.New(UNKNOWN_SEND + m.Props.Fileset.Position(e.Pos()).String())
 		return
 	}
