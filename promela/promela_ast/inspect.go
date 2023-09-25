@@ -41,7 +41,7 @@ func Inspect(s Node, f func(Node) bool) {
 			Inspect(s.X, f)
 		}
 	case *SingleGuardStmt:
-		if s != nil {
+		if s == nil {
 			break
 		}
 		Inspect(s.Cond, f)

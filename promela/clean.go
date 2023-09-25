@@ -40,9 +40,7 @@ func Clean(m *Model) {
 		is_used := used(commPar, m.Init.Body)
 
 		for _, proc := range m.Proctypes {
-			if used(commPar, proc.Body) {
-				is_used = true
-			}
+			is_used = is_used || used(commPar, proc.Body)
 		}
 
 		if !is_used {
@@ -92,53 +90,38 @@ func used(commPar *CommPar, b *promela_ast.BlockStmt) bool {
 	isUsed := func(s promela_ast.Node) bool {
 		switch s := s.(type) {
 		case *promela_ast.ForStmt:
-			if s.Ub.Name == commPar.Name.Name+"-1" {
-				is_used = true
-			}
-			if s.Ub.Name == commPar.Name.Name {
-				is_used = true
-			}
-			if s.Lb.Name == commPar.Name.Name {
-				is_used = true
-			}
+			is_used = is_used ||
+				s.Ub.Name == commPar.Name.Name+"-1" ||
+				s.Ub.Name == commPar.Name.Name ||
+				s.Lb.Name == commPar.Name.Name
 		case *promela_ast.CallExpr:
 			for _, arg := range s.Args {
 				switch arg := arg.(type) {
 				case *promela_ast.Ident:
-					if arg.Name == commPar.Name.Name {
-						is_used = true
-					}
+					is_used = is_used || arg.Name == commPar.Name.Name
 				}
 			}
 		case *promela_ast.RunStmt:
 			for _, arg := range s.X.Args {
 				switch arg := arg.(type) {
 				case *promela_ast.Ident:
-					if arg.Name == commPar.Name.Name {
-						is_used = true
-					}
+					is_used = is_used || arg.Name == commPar.Name.Name
 				}
 			}
 		case *promela_ast.DeclStmt:
 			switch s := s.Rhs.(type) {
 			case *promela_ast.Ident:
-				if s.Name == commPar.Name.Name {
-					is_used = true
-				}
+				is_used = is_used || s.Name == commPar.Name.Name
 			}
 			return false
 		case *promela_ast.CommParamDeclStmt:
 			switch s := s.Rhs.(type) {
 			case *promela_ast.Ident:
-				if s.Name == commPar.Name.Name {
-					is_used = true
-				}
+				is_used = is_used || s.Name == commPar.Name.Name
 			}
 			return false
 		case *promela_ast.Ident:
-			if s.Name == commPar.Name.Name {
-				is_used = true
-			}
+			is_used = is_used || s.Name == commPar.Name.Name
 		}
 		return !is_used
 	}

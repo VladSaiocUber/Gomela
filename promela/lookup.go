@@ -76,11 +76,21 @@ func (m *Model) lookUpFor(s *ast.ForStmt, spawns bool, pack *packages.Package) (
 	}
 
 	if !well_formed {
-		ub_decl := promela_ast.DefineStmt{Name: &promela_ast.Ident{Name: fmt.Sprintf("ub_for%d_%d", m.Props.Fileset.Position(s.Pos()).Line, m.Props.Fileset.Position(s.Pos()).Column)}, Rhs: &promela_ast.Ident{Name: OPTIONAL_BOUND}}
+		name := fmt.Sprintf("ub_for%d_%d", m.Props.Fileset.Position(s.Pos()).Line, m.Props.Fileset.Position(s.Pos()).Column)
+		ub_decl := promela_ast.DefineStmt{
+			Name: &promela_ast.Ident{
+				Name: name,
+			},
+			Rhs: &promela_ast.Ident{
+				Name: OPTIONAL_BOUND,
+			},
+		}
 		mandatory := "false"
 		if spawns {
 			mandatory = "true"
-			ub_decl.Rhs = &promela_ast.Ident{Name: DEFAULT_BOUND}
+			ub_decl.Rhs = &promela_ast.Ident{
+				Name: DEFAULT_BOUND,
+			}
 		}
 
 		if !m.inDefine(ub_decl.Name.Name) {
@@ -115,7 +125,6 @@ func (m *Model) lookUpFor(s *ast.ForStmt, spawns bool, pack *packages.Package) (
 		}
 	}
 	return
-
 }
 
 // take a for or range loop and return if its const, the bound of the for loop and the name in Go of the bound
