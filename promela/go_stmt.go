@@ -317,7 +317,7 @@ func (m *Model) translateParams(new_mod *Model, decl *ast.FuncDecl, call_expr *a
 
 	counter := 0
 
-	for _, field := range decl.Type.Params.List {
+	for i, field := range decl.Type.Params.List {
 		for _, name := range field.Names {
 			t := field.Type
 			switch sel := field.Type.(type) {
@@ -327,65 +327,60 @@ func (m *Model) translateParams(new_mod *Model, decl *ast.FuncDecl, call_expr *a
 			switch sel := t.(type) {
 			case *ast.ChanType:
 				hasChan = true
-				if m.containsChan(call_expr.Args[counter]) {
-					chan_name := name.Name + CHAN_NAME
-					params = append(params, &GenChanParam{
-						Pos:  m.Props.Fileset.Position(sel.Begin),
-						Name: chan_name,
-						M:    m.Props,
-					})
-					new_mod.Chans[name] = &ChanStruct{Name: &promela_ast.Ident{Name: chan_name}, Chan: m.Props.Fileset.Position(name.Pos())}
-
-					ch := m.getChanStruct(call_expr.Args[counter])
-
-					args = append(args, ch.Name)
-				} else {
+				if !m.containsChan(call_expr.Args[i]) {
 					known = false
+					continue
 				}
+				chan_name := name.Name + CHAN_NAME
+				params = append(params, &GenChanParam{
+					Pos:  m.Props.Fileset.Position(sel.Begin),
+					Name: chan_name,
+					M:    m.Props,
+				})
+				new_mod.Chans[name] = &ChanStruct{
+					Name: &promela_ast.Ident{Name: chan_name},
+					Chan: m.Props.Fileset.Position(name.Pos()),
+				}
+				ch := m.getChanStruct(call_expr.Args[i])
+				args = append(args, ch.Name)
 			case *ast.SelectorExpr:
-				switch ident := sel.X.(type) {
-				case *ast.Ident:
-					if ident.Name == "sync" {
-						if sel.Sel.Name == "WaitGroup" {
-							hasChan = true
-							if m.containsWaitgroup(call_expr.Args[counter]) {
-								wg := &WaitGroupStruct{Name: &promela_ast.Ident{Name: name.Name, Ident: m.Props.Fileset.Position(name.Pos())}, Wait: m.Props.Fileset.Position(name.Pos())}
-								params = append(params, &promela_ast.Param{Name: name.Name, Types: promela_types.Wgdef})
-								new_mod.WaitGroups[name] = wg
-								arg := call_expr.Args[counter]
+				ident, ok := sel.X.(*ast.Ident)
+				if !ok || ident.Name != "sync" {
+					continue
+				}
 
-								switch unary := call_expr.Args[counter].(type) {
-								case *ast.UnaryExpr:
-									arg = unary.X
-								}
-
-								ident := &promela_ast.Ident{Name: m.getIdent(arg).Name, Ident: m.Props.Fileset.Position(call_expr.Pos())}
-								args = append(args, ident)
-							} else {
-								known = false
-							}
-						} else if sel.Sel.Name == "Mutex" || sel.Sel.Name == "RWMutex" {
-							hasChan = true
-							if m.containsMutex(call_expr.Args[counter]) {
-								new_mod.Mutexes = append(new_mod.Mutexes, name)
-								params = append(params, &promela_ast.Param{Name: name.Name, Types: promela_types.Mutexdef})
-
-								arg := call_expr.Args[counter]
-
-								switch unary := call_expr.Args[counter].(type) {
-								case *ast.UnaryExpr:
-									arg = unary.X
-								}
-
-								ident := &promela_ast.Ident{Name: m.getIdent(arg).Name, Ident: m.Props.Fileset.Position(call_expr.Pos())}
-								args = append(args, ident)
-
-							} else {
-								known = false
-							}
-						}
+				switch sel.Sel.Name {
+				case "WaitGroup":
+					hasChan = true
+					if !m.containsWaitgroup(call_expr.Args[i]) {
+						known = false
+						continue
 					}
-
+					wg := &WaitGroupStruct{Name: &promela_ast.Ident{Name: name.Name, Ident: m.Props.Fileset.Position(name.Pos())}, Wait: m.Props.Fileset.Position(name.Pos())}
+					params = append(params, &promela_ast.Param{Name: name.Name, Types: promela_types.Wgdef})
+					new_mod.WaitGroups[name] = wg
+					arg := call_expr.Args[i]
+					switch unary := call_expr.Args[i].(type) {
+					case *ast.UnaryExpr:
+						arg = unary.X
+					}
+					ident := &promela_ast.Ident{Name: m.getIdent(arg).Name, Ident: m.Props.Fileset.Position(call_expr.Pos())}
+					args = append(args, ident)
+				case "Mutex", "RWMutex":
+					hasChan = true
+					if !m.containsMutex(call_expr.Args[i]) {
+						known = false
+						continue
+					}
+					new_mod.Mutexes = append(new_mod.Mutexes, name)
+					params = append(params, &promela_ast.Param{Name: name.Name, Types: promela_types.Mutexdef})
+					arg := call_expr.Args[counter]
+					switch unary := call_expr.Args[counter].(type) {
+					case *ast.UnaryExpr:
+						arg = unary.X
+					}
+					ident := &promela_ast.Ident{Name: m.getIdent(arg).Name, Ident: m.Props.Fileset.Position(call_expr.Pos())}
+					args = append(args, ident)
 				}
 			}
 

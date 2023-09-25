@@ -26,11 +26,17 @@ func (m *Model) TranslateCallExpr(call_expr *ast.CallExpr) (stmts *promela_ast.B
 		var err error
 		var b *promela_ast.BlockStmt
 
-		switch f := call_expr.Args[0].(type) {
-		case *ast.FuncLit:
-			b, err = m.TranslateGoStmt(&ast.GoStmt{Call: &ast.CallExpr{Fun: f, Args: []ast.Expr{}}}, false)
-		case *ast.CallExpr:
-			b, err = m.TranslateGoStmt(&ast.GoStmt{Call: f}, false)
+		// Try to prioritize a function literal argument.
+		for _, a := range call_expr.Args {
+			switch f := a.(type) {
+			case *ast.FuncLit:
+				b, err = m.TranslateGoStmt(&ast.GoStmt{Call: &ast.CallExpr{Fun: f, Args: []ast.Expr{}}}, false)
+			case *ast.CallExpr:
+				b, err = m.TranslateGoStmt(&ast.GoStmt{Call: f}, false)
+			default:
+				continue
+			}
+			break
 		}
 
 		if err != nil {
