@@ -533,46 +533,7 @@ func (m *Model) translateMutex(s ast.Stmt, prom_mutex_name ast.Expr) (b *promela
 func (m *Model) translateChan(go_chan_name ast.Expr, args []ast.Expr) (b *promela_ast.BlockStmt, err error) {
 	b = &promela_ast.BlockStmt{List: []promela_ast.Node{}}
 
-	if !m.For_counter.In_for {
-		// a new channel is found lets change its name, rename it in function and add to struct
-		prom_chan_name := translateIdent(go_chan_name)
-		prom_chan_name.Name += CHAN_NAME
-		channel := &ChanStruct{Name: &prom_chan_name, Chan: m.Props.Fileset.Position(go_chan_name.Pos())}
-
-		var size *promela_ast.Ident
-
-		if len(args) > 1 { // check if the channel is buffered or not
-			channel.Buffered = true
-			size, err = m.lookUp(args[1], CHAN_BOUND, false)
-
-		} else {
-			size = &promela_ast.Ident{Name: "0"}
-		}
-
-		chan_def := &ChanDefDeclStmt{
-			Decl: m.Props.Fileset.Position(go_chan_name.Pos()),
-			Name: &prom_chan_name,
-			Size: size,
-			M:    m.Props,
-		}
-
-		b.List = append(b.List, chan_def)
-
-		m.Chans[go_chan_name] = channel
-		m.Props.ContainsChan = true
-		m.PrintFeature(Feature{
-			Proj_name: m.Project_name,
-			Model:     m.Name,
-			Fun:       m.Fun.Name.String(),
-			Name:      "new channel",
-			Info:      "Name :" + channel.Name.Name,
-			Mandatory: "false",
-			Line:      channel.Chan.Line,
-			Commit:    m.Commit,
-			Filename:  channel.Chan.Filename,
-		})
-
-	} else {
+	if m.For_counter.In_for {
 		m.PrintFeature(Feature{
 			Proj_name: m.Project_name,
 			Model:     m.Name,
@@ -584,7 +545,44 @@ func (m *Model) translateChan(go_chan_name ast.Expr, args []ast.Expr) (b *promel
 			Filename:  m.Props.Fileset.Position(go_chan_name.Pos()).Filename,
 		})
 		err = errors.New(CHAN_IN_FOR + m.Props.Fileset.Position(go_chan_name.Pos()).String())
+		return
 	}
+
+	// a new channel is found lets change its name, rename it in function and add to struct
+	prom_chan_name := translateIdent(go_chan_name)
+	prom_chan_name.Name += CHAN_NAME
+	channel := &ChanStruct{Name: &prom_chan_name, Chan: m.Props.Fileset.Position(go_chan_name.Pos())}
+
+	var size *promela_ast.Ident
+
+	if len(args) > 1 { // check if the channel is buffered or not
+		channel.Buffered = true
+		size, err = m.lookUp(args[1], CHAN_BOUND, false)
+	} else {
+		size = &promela_ast.Ident{Name: "0"}
+	}
+
+	chan_def := &ChanDefDeclStmt{
+		Decl: m.Props.Fileset.Position(go_chan_name.Pos()),
+		Name: &prom_chan_name,
+		Size: size,
+		M:    m.Props,
+	}
+
+	b.List = append(b.List, chan_def)
+	m.Chans[go_chan_name] = channel
+	m.Props.ContainsChan = true
+	m.PrintFeature(Feature{
+		Proj_name: m.Project_name,
+		Model:     m.Name,
+		Fun:       m.Fun.Name.String(),
+		Name:      "new channel",
+		Info:      "Name :" + channel.Name.Name,
+		Mandatory: "false",
+		Line:      channel.Chan.Line,
+		Commit:    m.Commit,
+		Filename:  channel.Chan.Filename,
+	})
 	return b, err
 }
 
@@ -1129,35 +1127,39 @@ func (m *Model) PrintFeature(f Feature) {
 
 func (m *Model) newModel(pack string, fun *ast.FuncDecl) *Model {
 	return &Model{
+		Props:                m.Props,
+
 		Result_fodler:        m.Result_fodler,
 		Project_name:         m.Project_name,
 		Package:              pack,
 		Name:                 m.Name,
-		Go_names:             m.Go_names,
 		Commit:               m.Commit,
+
 		RecFuncs:             []RecFunc{},
 		SpawningFuncs:        m.SpawningFuncs,
+		Defines:              m.Defines,
 		Proctypes:            m.Proctypes,
 		Inlines:              m.Inlines,
 		Fun:                  fun,
-		Props:                m.Props,
 		Chans:                make(map[ast.Expr]*ChanStruct),
 		WaitGroups:           make(map[ast.Expr]*WaitGroupStruct),
 		Mutexes:              []ast.Expr{},
 		Init:                 m.Init,
 		Global_vars:          m.Global_vars,
-		Defines:              m.Defines,
 		CommPars:             []*CommPar{},
 		Features:             []Feature{},
+		ClosedVars:           make(map[*ChanStruct][]ast.Expr),
+
+		For_counter:          m.For_counter,
 		process_counter:      0,
 		func_counter:         0,
-		For_counter:          m.For_counter,
 		Counter:              m.Counter,
 		AstMap:               m.AstMap,
 		Projects_folder:      m.Projects_folder,
-		ClosedVars:           make(map[*ChanStruct][]ast.Expr),
 		GenerateFeatures:     m.GenerateFeatures,
 		Current_return_label: "stop_process",
+
+		Go_names:             m.Go_names,
 		All_mandatory:        m.All_mandatory,
 	}
 }
