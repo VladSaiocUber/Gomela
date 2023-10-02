@@ -62,14 +62,21 @@ func (m *Model) TranslateCallExpr(call_expr *ast.CallExpr) (stmts *promela_ast.B
 	}
 
 	decl, new_call_expr, pack_name, err1 := m.FindFunDecl(call_expr)
-
 	if err1 != nil {
 		return stmts, err1
 	}
 
 	if decl == nil {
-		var stmts1 *promela_ast.BlockStmt
+		var stmts0, stmts1 *promela_ast.BlockStmt
+		stmts0, err = m.TranslateExpr(call_expr.Fun)
+		if err != nil {
+			return
+		}
 		stmts1, err = m.ParseFuncArgs(call_expr)
+		if err != nil {
+			return
+		}
+		addBlock(stmts, stmts0)
 		addBlock(stmts, stmts1)
 		return
 	}
