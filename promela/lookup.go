@@ -82,7 +82,7 @@ func (m *Model) lookUpFor(s *ast.ForStmt, spawns bool, pack *packages.Package) (
 				Name: name,
 			},
 			Rhs: &promela_ast.Ident{
-				Name: OPTIONAL_BOUND,
+				Name: DEFAULT_BOUND,
 			},
 		}
 		mandatory := "false"

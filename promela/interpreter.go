@@ -125,7 +125,7 @@ func Print(m *Model) {
 	stmt += "\n /* ================================================================================== */"
 	stmt += "\n /* ================================================================================== */ \n"
 
-	if m.Props.ContainsChan && m.Props.ContainsClose {
+	if m.Props.ContainsChan && !m.Props.GingerMode {
 		stmt += GenerateAsyncMonitor() + generateSyncChanMonitor()
 	}
 

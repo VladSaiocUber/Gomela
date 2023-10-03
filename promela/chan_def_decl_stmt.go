@@ -20,33 +20,7 @@ func (s *ChanDefDeclStmt) Position() token.Position {
 
 func (s *ChanDefDeclStmt) Print(num_tabs int) (stmt string) {
 
-	if s.M.ContainsClose {
-
-		stmt += "Chandef " + s.Name.Print(num_tabs)
-
-		if_stmt := &promela_ast.IfStmt{Init: &promela_ast.BlockStmt{List: []promela_ast.Node{}}, Guards: []promela_ast.GuardStmt{}}
-		sync_monitor := &promela_ast.RunStmt{X: &promela_ast.CallExpr{Fun: &promela_ast.Ident{Name: "sync_monitor"}, Args: []promela_ast.Node{s.Name}}}
-
-		async_guard := &promela_ast.SingleGuardStmt{
-			Cond: &promela_ast.BinaryExpr{
-				Pos: s.Name.Ident,
-				Lhs: s.Size,
-				Op:  ">",
-				Rhs: &promela_ast.Ident{
-					Name: "0",
-				},
-			},
-			Body: &promela_ast.BlockStmt{List: []promela_ast.Node{
-				&promela_ast.AssignStmt{Lhs: &promela_ast.SelectorExpr{X: s.Name, Sel: &promela_ast.Ident{Name: "size"}}, Rhs: s.Size},
-				&promela_ast.RunStmt{X: &promela_ast.CallExpr{Fun: &promela_ast.Ident{Name: "async_monitor"}, Args: []promela_ast.Node{s.Name}}},
-			}}}
-		sync_guard := &promela_ast.SingleGuardStmt{Cond: &promela_ast.Ident{Name: "else"},
-			Body: &promela_ast.BlockStmt{List: []promela_ast.Node{sync_monitor}}}
-
-		if_stmt.Guards = append(if_stmt.Guards, async_guard, sync_guard)
-		stmt += ";\n " + if_stmt.Print(num_tabs)
-
-	} else {
+	if s.M.GingerMode {
 		// just print a generic channel
 		chan_def := &promela_ast.Chandef{
 			Def:   s.Decl,
@@ -55,7 +29,33 @@ func (s *ChanDefDeclStmt) Print(num_tabs int) (stmt string) {
 			Size:  s.Size,
 		}
 		stmt = chan_def.Print(num_tabs)
+		return
 	}
+
+	stmt += "Chandef " + s.Name.Print(num_tabs)
+	if_stmt := &promela_ast.IfStmt{Init: &promela_ast.BlockStmt{List: []promela_ast.Node{}}, Guards: []promela_ast.GuardStmt{}}
+	sync_monitor := &promela_ast.RunStmt{X: &promela_ast.CallExpr{Fun: &promela_ast.Ident{Name: "sync_monitor"}, Args: []promela_ast.Node{s.Name}}}
+
+	async_guard := &promela_ast.SingleGuardStmt{
+		Cond: &promela_ast.BinaryExpr{
+			Pos: s.Name.Ident,
+			Lhs: s.Size,
+			Op:  ">",
+			Rhs: &promela_ast.Ident{
+				Name: "0",
+			},
+		},
+		Body: &promela_ast.BlockStmt{List: []promela_ast.Node{
+			&promela_ast.AssignStmt{Lhs: &promela_ast.SelectorExpr{X: s.Name, Sel: &promela_ast.Ident{Name: "size"}}, Rhs: s.Size},
+			&promela_ast.RunStmt{X: &promela_ast.CallExpr{Fun: &promela_ast.Ident{Name: "async_monitor"}, Args: []promela_ast.Node{s.Name}}},
+		}}}
+	sync_guard := &promela_ast.SingleGuardStmt{
+		Cond: &promela_ast.Ident{Name: "else"},
+		Body: &promela_ast.BlockStmt{List: []promela_ast.Node{sync_monitor}},
+	}
+
+	if_stmt.Guards = append(if_stmt.Guards, async_guard, sync_guard)
+	stmt += ";\n " + if_stmt.Print(num_tabs)
 
 	return
 }

@@ -6,7 +6,7 @@ import (
 	"github.com/nicolasdilley/gomela/promela/promela_ast"
 )
 
-// A channel parameter is either of the form "chan c", or "Chandef c", based on M.containsClose.
+// A function to "receiver". Will be generated when synchronous function calls exist in the program.
 type GenReceiver struct {
 	M     *GlobalProps
 	Name  string

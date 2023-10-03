@@ -40,8 +40,6 @@ func (m *Model) translateRangeStmt(s *ast.RangeStmt) (b *promela_ast.BlockStmt, 
 	m.GenerateFeatures = true
 
 	if m.containsChan(s.X) {
-		m.Props.ContainsClose = true
-
 		m.PrintFeature(Feature{
 			Proj_name: m.Project_name,
 			Model:     m.Name,

@@ -41,7 +41,7 @@ type GlobalProps struct {
 	ContainsChan     bool
 	ContainsMutexes  bool
 	ContainsReceiver bool
-	ContainsClose    bool // Does the partition contain a close statement ?
+	GingerMode    bool // Is the model running in Ginger mode?
 }
 
 type Model struct {
@@ -148,17 +148,15 @@ func (m *Model) GoToPromela(SEP string) (bool, error) {
 
 	Clean(m)
 
-	containsClose := m.Props.ContainsClose // Original contains close
 	m2 := m.Clone()
-	m.Props.ContainsClose = true
-	Print(m) // Print original the model
+	m.Props.GingerMode = false
+	// Print original the model
+	Print(m)
 	PrintFeatures(m.Features, m)
-	// Print ginger model
-	if !containsClose {
-		m2.Name = m.Name + "-ginger"
-		m2.Props.ContainsClose = containsClose
-		Print(m2)
-	}
+	// Print Ginger-friendly model
+	m2.Name = m.Name + "-ginger"
+	m2.Props.GingerMode = true
+	Print(m2)
 	return true, nil
 }
 
@@ -675,27 +673,16 @@ func (m *Model) TranslateExpr(expr ast.Expr) (stmts *promela_ast.BlockStmt, err 
 				switch {
 				// Closing a channel
 				case name.Name == "close" && len(expr.Args) == 1:
-					rcv := &promela_ast.RcvStmt{Model: "Close", Rcv: m.Props.Fileset.Position(name.Pos())}
-
 					if !m.containsChan(expr.Args[0]) {
 						err = errors.Join(err, errors.New(UNKNOWN_CHAN_CLOSE+m.Props.Fileset.Position(expr.Pos()).String()))
 						return
 					}
-					m.Props.ContainsClose = true
-					chan_name := m.getChanStruct(expr.Args[0])
-
-					rcv.Chan = &promela_ast.SelectorExpr{
-						X: chan_name.Name, Sel: &promela_ast.Ident{Name: "closing"},
-						Pos: m.Props.Fileset.Position(expr.Args[0].Pos()),
+					clos := &GenCloseStmt{
+						M: m.Props,
+						Pos: m.Props.Fileset.Position(name.Pos()),
+						Chan: m.getChanStruct(expr.Args[0]),
 					}
-					rcv.Rhs = &promela_ast.Ident{Name: "closed"}
-
-					assert := &promela_ast.AssertStmt{
-						Model: "Close",
-						Pos:   m.Props.Fileset.Position(expr.Pos()),
-						Expr:  &promela_ast.Ident{Name: "!closed"},
-					}
-					stmts.List = append(stmts.List, rcv, assert)
+					stmts.List = append(stmts.List, clos)
 				// Call to panic
 				case name.Name == "panic" && len(expr.Args) == 1:
 					translateExpr(expr.Args[0])
