@@ -90,10 +90,8 @@ func VerifyModels(ver_info *VerificationInfo, models []os.FileInfo, dir_name str
 			continue
 		}
 
-		if ver_info.ginger_mode {
-			if strings.Contains(path, "-ginger") {
-				runGinger(path)
-			}
+		if ver_info.ginger_mode  && strings.Contains(path, "-ginger") {
+			runGinger(path)
 			continue
 		}
 		var git_link string
