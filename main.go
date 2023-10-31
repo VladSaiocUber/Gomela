@@ -359,7 +359,7 @@ func model(ver *VerificationInfo) []string {
 		_, err := ioutil.ReadDir(path)
 
 		if err != nil {
-			panic("please give a valid folder to parse.")
+			panic("please give a valid folder to parse. Path: " + path)
 		}
 		packages := []string{}
 		filepath.Walk(path, func(path string, file os.FileInfo, err error) error {
