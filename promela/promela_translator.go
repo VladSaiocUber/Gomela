@@ -586,13 +586,27 @@ func (m *Model) translateChan(go_chan_name ast.Expr, args []ast.Expr) (b *promel
 
 // takes a promela body and add break if there are no breaks at the end or if there is
 // add a goto to the surrounding for loop
-func (m *Model) checkForBreak(body *promela_ast.BlockStmt, g *promela_ast.GotoStmt) {
-	if found := containsBreak(body); !found && !containsReturn(body) { // no return or break then just break
-		body.List = append(body.List, &promela_ast.Ident{Name: "break"})
-	} else {
-		if found {
-			replaceBreak(body, g)
+func checkForBreak(body promela_ast.Node, g *promela_ast.GotoStmt) {
+	treatBlock := func(block *promela_ast.BlockStmt) {
+		switch found := containsBreak(block); {
+		case !found && !containsReturn(block): // no return or break then just break
+			block.List = append(block.List, &promela_ast.Ident{Name: "break"})
+		case found:
+			replaceBreak(block, g)
 		}
+	}
+
+	switch body := body.(type) {
+	case *promela_ast.BlockStmt:
+		treatBlock(body)
+	case *GenSendStmt:
+		treatBlock(body.Sync_body)
+		treatBlock(body.Async_body)
+	case *GenRcvStmt:
+		treatBlock(body.Sync_body)
+		treatBlock(body.Async_body)
+	case *promela_ast.SingleGuardStmt:
+		treatBlock(body.Body)
 	}
 }
 
