@@ -32,7 +32,12 @@ func (c *CallExpr) Print(num_tabs int) (stmt string) {
 }
 
 func (s *CallExpr) Clone() Node {
-	s1 := &CallExpr{Fun: s.Fun.Clone().(*Ident), Call: s.Call, Args: []Node{}}
+	s1 := &CallExpr{
+		Fun: s.Fun.Clone().(*Ident),
+		Call: s.Call,
+		Args: []Node{},
+		Model: s.Model,
+	}
 
 	for _, expr := range s.Args {
 		s1.Args = append(s1.Args, expr.Clone())

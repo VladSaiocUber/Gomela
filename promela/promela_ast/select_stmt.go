@@ -34,7 +34,12 @@ func (s *SelectStmt) Print(num_tabs int) (stmt string) {
 }
 
 func (s *SelectStmt) Clone() Node {
-	s1 := &SelectStmt{Select: s.Select, Guards: []GuardStmt{}, Has_default: s.Has_default}
+	s1 := &SelectStmt{
+		Select: s.Select,
+		Guards: []GuardStmt{},
+		Has_default: s.Has_default,
+		Model: s.Model,
+	}
 
 	for _, g := range s.Guards {
 		s1.Guards = append(s1.Guards, g.Clone().(GuardStmt))

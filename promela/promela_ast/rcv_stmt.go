@@ -23,6 +23,11 @@ func (s *RcvStmt) Print(num_tabs int) string {
 	return s.Chan.Print(num_tabs) + "?" + s.Rhs.Print(num_tabs) + comment
 }
 func (s *RcvStmt) Clone() Node {
-	s1 := &RcvStmt{Rcv: s.Rcv, Chan: s.Chan.Clone(), Rhs: s.Rhs.Clone()}
+	s1 := &RcvStmt{
+		Rcv: s.Rcv,
+		Chan: s.Chan.Clone(),
+		Rhs: s.Rhs.Clone(),
+		Model: s.Model,
+	}
 	return s1
 }

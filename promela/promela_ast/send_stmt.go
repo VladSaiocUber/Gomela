@@ -27,6 +27,6 @@ func (s *SendStmt) Print(num_tabs int) string {
 }
 
 func (s *SendStmt) Clone() Node {
-	s1 := &SendStmt{Send: s.Send, Chan: s.Chan.Clone(), Rhs: s.Rhs.Clone()}
+	s1 := &SendStmt{Send: s.Send, Chan: s.Chan.Clone(), Rhs: s.Rhs.Clone(), Model: s.Model }
 	return s1
 }

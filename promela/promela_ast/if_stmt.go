@@ -43,7 +43,11 @@ func (s *IfStmt) Print(num_tabs int) (stmt string) {
 
 func (s *IfStmt) Clone() Node {
 
-	s1 := &IfStmt{If: s.If, Guards: []GuardStmt{}}
+	s1 := &IfStmt{
+		If: s.If,
+		Guards: []GuardStmt{},
+		Model: s.Model,
+	}
 	if s.Init != nil {
 		s1.Init = s.Init.Clone().(*BlockStmt)
 	}

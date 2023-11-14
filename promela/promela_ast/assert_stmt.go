@@ -27,6 +27,10 @@ func (a *AssertStmt) Print(num_tabs int) string {
 }
 
 func (s *AssertStmt) Clone() Node {
-	s1 := &AssertStmt{Pos: s.Pos, Expr: s.Expr.Clone()}
+	s1 := &AssertStmt{
+		Pos: s.Pos,
+		Expr: s.Expr.Clone(),
+		Model: s.Model,
+	}
 	return s1
 }
