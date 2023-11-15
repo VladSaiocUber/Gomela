@@ -54,12 +54,15 @@ func (m *Model) IsExprKnown(expr ast.Expr) bool {
 func (m *Model) TranslateKnownExpr(expr ast.Expr) (promela_ast.Node, []*CommPar) {
 	var prom_expr promela_ast.Node
 	commPars := []*CommPar{}
+	pos := m.Props.Fileset.Position(expr.Pos())
 
 	switch expr := expr.(type) {
+	case *ast.ParenExpr:
+		prom_expr, commPars = m.TranslateKnownExpr(expr.X)
 	case *ast.CompositeLit:
-		prom_expr = &promela_ast.Ident{Name: fmt.Sprintf("%d", len(expr.Elts))}
+		prom_expr = &promela_ast.Ident{Ident: pos, Name: fmt.Sprintf("%d", len(expr.Elts))}
 	case *ast.BasicLit:
-		prom_expr = &promela_ast.Ident{Name: expr.Value}
+		prom_expr = &promela_ast.Ident{Ident: pos, Name: expr.Value}
 	case *ast.Ident, *ast.SelectorExpr:
 		known, ident := ContainsCommParam(m.CommPars, &CommPar{Name: &ast.Ident{Name: m.getIdent(expr).Name}})
 
@@ -68,6 +71,7 @@ func (m *Model) TranslateKnownExpr(expr ast.Expr) (promela_ast.Node, []*CommPar)
 		}
 
 		prom_expr = &promela_ast.Ident{
+			Ident: pos,
 			Name: VAR_PREFIX + ident.Name.Name,
 		}
 		commPars = append(commPars, ident)
@@ -85,11 +89,11 @@ func (m *Model) TranslateKnownExpr(expr ast.Expr) (promela_ast.Node, []*CommPar)
 	case *ast.BinaryExpr:
 		if m.IsExprKnown(expr) {
 			lhs, params1 := m.TranslateKnownExpr(expr.X)
-
 			commPars = append(commPars, params1...)
 			rhs, params2 := m.TranslateKnownExpr(expr.Y)
 			commPars = append(commPars, params2...)
 			prom_expr = &promela_ast.BinaryExpr{
+				Pos: pos,
 				Lhs: lhs,
 				Rhs: rhs,
 				Op:  expr.Op.String(),

@@ -20,6 +20,7 @@ import (
 func (m *Model) TranslateGoStmt(s *ast.GoStmt, isMain bool) (b *promela_ast.BlockStmt, err error) {
 	defer func() {
 		if pnc := recover(); pnc != nil {
+			fmt.Println("Failed at:", m.Props.Fileset.Position(s.Pos()))
 			err = fmt.Errorf("%s\nTrace:%s", pnc, debug.Stack())
 		}
 	}()
