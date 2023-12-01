@@ -660,9 +660,17 @@ func (m *Model) TranslateExpr(expr ast.Expr) (stmts *promela_ast.BlockStmt, err 
 		return
 	}
 
+	// Inspect whether the expression contains a function literal that uses
+	// a known concurrency parameter as a free variable. If so, we need to
+	// flag the fragment as not being a candidate for modeling, due to unsoundness.
 	ast.Inspect(expr, func(n ast.Node) bool {
 		switch expr := n.(type) {
-		case *ast.CallExpr, *ast.FuncLit:
+		case *ast.FuncLit:
+			err = errors.Join(err, m.checkFreeVars(expr))
+			return false
+		case *ast.CallExpr:
+			// Call expressions must be surveyed for known goroutine spawns,
+			// so they are treated separately.
 			return false
 		case *ast.UnaryExpr:
 			switch expr.Op {
@@ -674,6 +682,9 @@ func (m *Model) TranslateExpr(expr ast.Expr) (stmts *promela_ast.BlockStmt, err 
 		}
 		return true
 	})
+	if err != nil {
+		return
+	}
 
 	var translateExpr func(ast.Expr)
 	translateExpr = func(e ast.Expr) {

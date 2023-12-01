@@ -30,6 +30,7 @@ const (
 	// 2. Aggregate data structures
 	CHAN_DECLARED_IN_STRUCT = "Found a chan declared in a struct at pos: "
 	WG_DECLARED_IN_STRUCT   = "Found a waitgroup declared in a struct at pos: "
+	FUNC_LIT_CONC_PRIM		= "Concurrency primitive escapes in function literal at: "
 	CHAN_IN_MAP             = "Map of chan at pos: "
 	CHAN_IN_LIST            = "List of chan at pos: "
 	WG_IN_MAP               = "Map of wg at pos: "

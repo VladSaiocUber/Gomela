@@ -22,7 +22,7 @@ func (s *GenCloseStmt) Print(num_tabs int) string {
 
 	// if contains close send to monitor
 	if s.M.GingerMode {
-		return "// Missing close here"
+		return "run close(" + s.Chan.Name.Name + ")\n"
 	}
 
 	rcv := &promela_ast.RcvStmt{Model: "Close", Rcv: s.Pos}
